@@ -1,5 +1,6 @@
 package com.literaryworld.shared.web;
 
+import com.literaryworld.auth.InvalidCredentialsException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -38,6 +39,18 @@ public class GlobalExceptionHandler {
                         "error", "Bad Request",
                         "message", "dados inválidos",
                         "fields", fieldErrors,
+                        "timestamp", Instant.now().toString()
+                ));
+    }
+
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<Map<String, Object>> handleBadCredentials(InvalidCredentialsException ex) {
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(Map.of(
+                        "status", 401,
+                        "error", "Unauthorized",
+                        "message", ex.getMessage(),
                         "timestamp", Instant.now().toString()
                 ));
     }

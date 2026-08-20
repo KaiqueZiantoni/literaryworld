@@ -41,4 +41,16 @@ public class AuthService {
 
         return user.getId();
     }
+
+    @Transactional(readOnly = true)
+    public UUID login(LoginRequest request) {
+        var credentials = credentialsRepository.findByEmail(request.email())
+                .orElseThrow(InvalidCredentialsException::new);
+
+        if (!passwordEncoder.matches(request.password(), credentials.getPasswordHash())) {
+            throw new InvalidCredentialsException();
+        }
+
+        return credentials.getUserId();
+    }
 }

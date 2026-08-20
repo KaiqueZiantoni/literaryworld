@@ -28,4 +28,10 @@ public class AuthController {
                 .status(HttpStatus.CREATED)
                 .body(Map.of("id", userId, "username", request.username()));
     }
+
+    @PostMapping("/login")
+    public ResponseEntity<Map<String, Object>> login(@Valid @RequestBody LoginRequest request) {
+        UUID userId = authService.login(request);
+        return ResponseEntity.ok(Map.of("id", userId));
+    }
 }
