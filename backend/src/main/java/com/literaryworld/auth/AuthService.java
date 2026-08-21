@@ -7,10 +7,14 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.util.UUID;
 
 @Service
 public class AuthService {
+
+    private static final int MAX_FAILED_ATTEMPTS = 5;
+    private static final Duration LOCK_DURATION = Duration.ofMinutes(15);
 
     private final UserRepository userRepository;
     private final UserCredentialsRepository credentialsRepository;
@@ -42,15 +46,22 @@ public class AuthService {
         return user.getId();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(noRollbackFor = InvalidCredentialsException.class)
     public UUID login(LoginRequest request) {
         var credentials = credentialsRepository.findByEmail(request.email())
                 .orElseThrow(InvalidCredentialsException::new);
 
-        if (!passwordEncoder.matches(request.password(), credentials.getPasswordHash())) {
+        if (credentials.isLocked()) {
             throw new InvalidCredentialsException();
         }
 
+        if (!passwordEncoder.matches(request.password(), credentials.getPasswordHash())) {
+            // A falha precisa ser PERSISTIDA mesmo com a exceção abaixo — daí o noRollbackFor.
+            credentials.registerFailedAttempt(MAX_FAILED_ATTEMPTS, LOCK_DURATION);
+            throw new InvalidCredentialsException();
+        }
+
+        credentials.resetFailedAttempts();
         return credentials.getUserId();
     }
 }

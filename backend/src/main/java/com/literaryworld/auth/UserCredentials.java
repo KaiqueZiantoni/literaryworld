@@ -10,6 +10,7 @@ import jakarta.persistence.MapsId;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -62,4 +63,21 @@ public class UserCredentials {
     public Instant getEmailVerifiedAt() { return emailVerifiedAt; }
     public int getFailedAttempts() { return failedAttempts; }
     public Instant getLockedUntil() { return lockedUntil; }
+    public void registerFailedAttempt(int maxAttempts, Duration lockDuration) {
+        this.failedAttempts++;
+        if (this.failedAttempts >= maxAttempts) {
+            this.lockedUntil = Instant.now().plus(lockDuration);
+            this.failedAttempts = 0;
+        }
+    }
+
+    public void resetFailedAttempts() {
+        this.failedAttempts = 0;
+        this.lockedUntil = null;
+    }
+
+    public boolean isLocked() {
+        return lockedUntil != null && Instant.now().isBefore(lockedUntil);
+    }
+
 }
