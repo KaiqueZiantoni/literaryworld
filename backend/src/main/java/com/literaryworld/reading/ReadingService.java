@@ -15,13 +15,16 @@ public class ReadingService {
     private final UserBookRepository userBookRepository;
     private final ReadingLogRepository readingLogRepository;
     private final BookRepository bookRepository;
+    private final UserGenreStatsRepository statsRepository;
 
     public ReadingService(UserBookRepository userBookRepository,
                           ReadingLogRepository readingLogRepository,
-                          BookRepository bookRepository) {
+                          BookRepository bookRepository,
+                          UserGenreStatsRepository statsRepository) {
         this.userBookRepository = userBookRepository;
         this.readingLogRepository = readingLogRepository;
         this.bookRepository = bookRepository;
+        this.statsRepository = statsRepository;
     }
 
     @Transactional
@@ -49,13 +52,13 @@ public class ReadingService {
                     Integer totalPages = book != null ? book.getPageCount() : null;
 
                     if (totalPages != null && effectivePage > totalPages) {
-                        effectivePage = totalPages; // clamp: intenção clara de "terminei"
+                        effectivePage = totalPages;
                     }
 
                     userBook.updateProgress(effectivePage);
 
                     if (totalPages != null && effectivePage == totalPages) {
-                        userBook.finish(); // conclusão automática (lado 1 do híbrido)
+                        finishAndUpdateStats(userBook);
                     }
 
                     var today = LocalDate.now();
@@ -75,7 +78,7 @@ public class ReadingService {
     public Optional<UserBook> finishReading(UUID userId, UUID userBookId) {
         return userBookRepository.findByIdAndUserId(userBookId, userId)
                 .map(userBook -> {
-                    userBook.finish(); // conclusão manual (lado 2 do híbrido)
+                    finishAndUpdateStats(userBook);
                     return userBook;
                 });
     }
@@ -83,5 +86,28 @@ public class ReadingService {
     @Transactional(readOnly = true)
     public List<ShelfItemResponse> getShelf(UUID userId) {
         return userBookRepository.findShelfWithBooks(userId);
+    }
+
+    private void finishAndUpdateStats(UserBook userBook) {
+        if (userBook.getStatus() == ReadingStatus.LIDO) {
+            return; // já concluído: placar intocado (anti-inflação)
+        }
+
+        userBook.finish();
+
+        var book = bookRepository.findById(userBook.getBookId()).orElse(null);
+        if (book == null) {
+            return;
+        }
+
+        int pages = book.getPageCount() != null ? book.getPageCount() : 0;
+
+        book.getGenres().forEach(genre -> {
+            var stats = statsRepository.findById(
+                            new UserGenreStatsId(userBook.getUserId(), genre.getId()))
+                    .orElseGet(() -> new UserGenreStats(userBook.getUserId(), genre.getId()));
+            stats.registerFinishedBook(pages);
+            statsRepository.save(stats);
+        });
     }
 }
