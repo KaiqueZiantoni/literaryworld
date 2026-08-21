@@ -4,7 +4,8 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-
+import io.jsonwebtoken.JwtException;
+import java.util.Optional;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -34,5 +35,18 @@ public class JwtService {
                 .expiration(Date.from(now.plus(expiration)))
                 .signWith(key)
                 .compact();
+    }
+    public Optional<UUID> validateAndGetUserId(String token) {
+        try {
+            var claims = Jwts.parser()
+                    .verifyWith(key)
+                    .requireIssuer("literaryworld")
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+            return Optional.of(UUID.fromString(claims.getSubject()));
+        } catch (JwtException | IllegalArgumentException e) {
+            return Optional.empty();
+        }
     }
 }
