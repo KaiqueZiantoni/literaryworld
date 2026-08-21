@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @RestController
@@ -26,10 +28,14 @@ public class CatalogController {
 
     private final GoogleBooksClient googleBooksClient;
     private final CatalogService catalogService;
+    private final GenreRepository genreRepository;
 
-    public CatalogController(GoogleBooksClient googleBooksClient, CatalogService catalogService) {
+    public CatalogController(GoogleBooksClient googleBooksClient,
+                             CatalogService catalogService,
+                             GenreRepository genreRepository) {
         this.googleBooksClient = googleBooksClient;
         this.catalogService = catalogService;
+        this.genreRepository = genreRepository;
     }
 
     @GetMapping("/search")
@@ -70,12 +76,25 @@ public class CatalogController {
 
             @Size(max = 500)
             @Pattern(regexp = "^https?://.*", message = "coverUrl deve ser uma URL http(s)")
-            String coverUrl
+            String coverUrl,
+
+            @NotEmpty(message = "genreIds é obrigatório")
+            @Size(max = 5, message = "máximo de 5 gêneros por livro")
+            Set<Short> genreIds
     ) {}
 
     @PostMapping("/books")
-    public ResponseEntity<Map<String, Object>> addBook(@Valid @RequestBody AddBookRequest request,
-                                                       @RequestAttribute("userId") UUID userId) {
+    public ResponseEntity<?> addBook(@Valid @RequestBody AddBookRequest request,
+                                     @RequestAttribute("userId") UUID userId) {
+
+        // A SOLUÇÃO DO EXERCÍCIO: pedidos vs. encontrados
+        var foundGenres = genreRepository.findAllById(request.genreIds());
+        if (foundGenres.size() != request.genreIds().size()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("status", 400, "error", "Bad Request",
+                            "message", "um ou mais genreIds não existem no catálogo"));
+        }
+
         Book book = catalogService.addBook(
                 request.googleBooksId(),
                 request.title().trim(),
@@ -83,7 +102,8 @@ public class CatalogController {
                 request.pageCount(),
                 request.language(),
                 request.coverUrl(),
-                userId
+                userId,
+                request.genreIds()
         );
 
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
