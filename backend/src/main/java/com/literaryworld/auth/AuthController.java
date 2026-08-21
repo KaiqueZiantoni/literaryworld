@@ -16,9 +16,11 @@ import java.util.UUID;
 public class AuthController {
 
     private final AuthService authService;
+    private final JwtService jwtService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, JwtService jwtService) {
         this.authService = authService;
+        this.jwtService = jwtService;
     }
 
     @PostMapping("/register")
@@ -32,6 +34,7 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<Map<String, Object>> login(@Valid @RequestBody LoginRequest request) {
         UUID userId = authService.login(request);
-        return ResponseEntity.ok(Map.of("id", userId));
+        String token = jwtService.generateToken(userId);
+        return ResponseEntity.ok(Map.of("accessToken", token));
     }
 }
