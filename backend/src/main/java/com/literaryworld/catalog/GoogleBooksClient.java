@@ -42,6 +42,21 @@ public class GoogleBooksClient {
             return Optional.of(response.items());
 
         } catch (RestClientException e) {
+            System.out.println(">>> findById falhou: " + e.getMessage());
+            return Optional.empty();
+        }
+    }
+    public Optional<GoogleBooksResponse.Item> findById(String googleBooksId) {
+        try {
+            var item = restClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/volumes/{id}")
+                            .queryParam("key", apiKey)
+                            .build(googleBooksId))
+                    .retrieve()
+                    .body(GoogleBooksResponse.Item.class);
+            return Optional.ofNullable(item);
+        } catch (RestClientException e) {
             return Optional.empty();
         }
     }

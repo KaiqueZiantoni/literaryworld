@@ -1,23 +1,35 @@
 package com.literaryworld.catalog;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/catalog")
 public class CatalogController {
 
     private final GoogleBooksClient googleBooksClient;
+    private final CatalogService catalogService;
 
-    public CatalogController(GoogleBooksClient googleBooksClient) {
+    public CatalogController(GoogleBooksClient googleBooksClient, CatalogService catalogService) {
         this.googleBooksClient = googleBooksClient;
+        this.catalogService = catalogService;
     }
 
     @GetMapping("/search")
@@ -33,6 +45,55 @@ public class CatalogController {
                 .orElse(ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                         .body(Map.of("status", 503, "error", "Service Unavailable",
                                 "message", "busca temporariamente indisponível")));
+    }
+
+    public record AddBookRequest(
+            @NotBlank(message = "googleBooksId é obrigatório")
+            @Size(max = 20)
+            @Pattern(regexp = "^[a-zA-Z0-9_-]+$", message = "googleBooksId inválido")
+            String googleBooksId,
+
+            @NotBlank(message = "title é obrigatório")
+            @Size(max = 500)
+            String title,
+
+            @NotBlank(message = "authors é obrigatório")
+            @Size(max = 500)
+            String authors,
+
+            @Min(value = 1, message = "pageCount deve ser positivo")
+            @Max(value = 20000, message = "pageCount fora da faixa")
+            Integer pageCount,
+
+            @Size(max = 10)
+            String language,
+
+            @Size(max = 500)
+            @Pattern(regexp = "^https?://.*", message = "coverUrl deve ser uma URL http(s)")
+            String coverUrl
+    ) {}
+
+    @PostMapping("/books")
+    public ResponseEntity<Map<String, Object>> addBook(@Valid @RequestBody AddBookRequest request,
+                                                       @RequestAttribute("userId") UUID userId) {
+        Book book = catalogService.addBook(
+                request.googleBooksId(),
+                request.title().trim(),
+                request.authors().trim(),
+                request.pageCount(),
+                request.language(),
+                request.coverUrl(),
+                userId
+        );
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
+                "id", book.getId(),
+                "googleBooksId", book.getGoogleBooksId(),
+                "title", book.getTitle(),
+                "authors", book.getAuthors(),
+                "pageCount", book.getPageCount() != null ? book.getPageCount() : 0,
+                "coverUrl", book.getCoverUrl() != null ? book.getCoverUrl() : ""
+        ));
     }
 
     private List<Map<String, Object>> toResults(List<GoogleBooksResponse.Item> items) {
