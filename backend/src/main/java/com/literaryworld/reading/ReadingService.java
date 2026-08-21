@@ -81,7 +81,7 @@ public class ReadingService {
     }
 
     @Transactional(readOnly = true)
-    public List<UserBook> getShelf(UUID userId) {
-        return userBookRepository.findAllByUserId(userId);
+    public List<ShelfItemResponse> getShelf(UUID userId) {
+        return userBookRepository.findShelfWithBooks(userId);
     }
 }

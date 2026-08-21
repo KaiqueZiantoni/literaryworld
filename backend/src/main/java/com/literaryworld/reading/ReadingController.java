@@ -65,11 +65,8 @@ public class ReadingController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Map<String, Object>>> shelf(@RequestAttribute("userId") UUID userId) {
-        var items = readingService.getShelf(userId).stream()
-                .map(this::toResponse)
-                .toList();
-        return ResponseEntity.ok(items);
+    public ResponseEntity<List<ShelfItemResponse>> shelf(@RequestAttribute("userId") UUID userId) {
+        return ResponseEntity.ok(readingService.getShelf(userId));
     }
 
     private Map<String, Object> toResponse(UserBook userBook) {
