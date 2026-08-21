@@ -17,7 +17,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     private static final Set<String> PUBLIC_PATHS = Set.of(
             "/health",
             "/auth/register",
-            "/auth/login"
+            "/auth/login",
+            "/auth/refresh"
     );
 
     private final JwtService jwtService;

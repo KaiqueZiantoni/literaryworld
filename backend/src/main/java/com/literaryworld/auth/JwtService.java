@@ -21,8 +21,8 @@ public class JwtService {
 
     public JwtService(@Value("${jwt.secret}") String secret,
                       @Value("${jwt.expiration-minutes}") long expirationMinutes) {
-        System.out.println(">>> JWT_SECRET com " + secret.getBytes(StandardCharsets.UTF_8).length + " bytes");
-        System.out.println(">>> começa com [" + secret.substring(0, 8) + "...] termina com [..." + secret.substring(secret.length() - 8) + "]");        this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+
+        this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.expiration = Duration.ofMinutes(expirationMinutes);
     }
 
