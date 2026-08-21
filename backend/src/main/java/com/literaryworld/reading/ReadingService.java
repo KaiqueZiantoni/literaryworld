@@ -43,16 +43,39 @@ public class ReadingService {
     public Optional<UserBook> updateProgress(UUID userId, UUID userBookId, int page) {
         return userBookRepository.findByIdAndUserId(userBookId, userId)
                 .map(userBook -> {
-                    userBook.updateProgress(page);
+                    int effectivePage = page;
+
+                    var book = bookRepository.findById(userBook.getBookId()).orElse(null);
+                    Integer totalPages = book != null ? book.getPageCount() : null;
+
+                    if (totalPages != null && effectivePage > totalPages) {
+                        effectivePage = totalPages; // clamp: intenção clara de "terminei"
+                    }
+
+                    userBook.updateProgress(effectivePage);
+
+                    if (totalPages != null && effectivePage == totalPages) {
+                        userBook.finish(); // conclusão automática (lado 1 do híbrido)
+                    }
 
                     var today = LocalDate.now();
+                    int pageForLog = effectivePage;
                     readingLogRepository.findByUserBookIdAndLogDate(userBookId, today)
                             .ifPresentOrElse(
-                                    log -> log.updatePage(page),
+                                    log -> log.updatePage(pageForLog),
                                     () -> readingLogRepository.save(
-                                            new ReadingLog(UUID.randomUUID(), userBookId, today, page))
+                                            new ReadingLog(UUID.randomUUID(), userBookId, today, pageForLog))
                             );
 
+                    return userBook;
+                });
+    }
+
+    @Transactional
+    public Optional<UserBook> finishReading(UUID userId, UUID userBookId) {
+        return userBookRepository.findByIdAndUserId(userBookId, userId)
+                .map(userBook -> {
+                    userBook.finish(); // conclusão manual (lado 2 do híbrido)
                     return userBook;
                 });
     }
