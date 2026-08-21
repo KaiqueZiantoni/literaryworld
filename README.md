@@ -4,16 +4,18 @@
 
 Projeto de portfólio em desenvolvimento, construído com foco em **arquitetura limpa**, **segurança em profundidade** e **boas práticas de engenharia** desde o primeiro commit.
 
+**🏁 Status: backend de produto 100% funcional** — 14 endpoints cobrindo identidade, catálogo, leitura e camada social. Em desenvolvimento: frontend (React/TypeScript) e maturação para produção.
+
 ---
 
-## ✨ A ideia
+## ✨ O produto
 
-- **Mundo Visual Generativo** — o perfil é uma vitrine dinâmica construída a partir da densidade de gêneros lidos
-- **Marcador de leitura diário** — o livro no seu "Mundo" começa como esboço e ganha cor conforme o progresso avança
-- **Reviews com filtro anti-spoiler** — avaliações ofuscadas por padrão quando marcadas como spoiler
-- **Algoritmo de credibilidade** — reviews ordenadas pelo peso de leitura do autor naquele gênero
-- **Integração com Google Books API** — busca automatizada de dados das obras
-- **Compartilhamento social** — template de imagem gerado ao finalizar um livro
+- **Mundo Visual Generativo** — perfil público construído pela densidade de gêneros lidos *(dados prontos; renderização no frontend)*
+- **Marcador de leitura diário** — progresso registrado dia a dia; o livro "ganha cor" conforme avança ✅
+- **Reviews com filtro anti-spoiler** — avaliações de até 1000 caracteres, ofuscadas por padrão quando marcadas como spoiler ✅
+- **Algoritmo de credibilidade** — reviews ordenadas pelo peso de leitura do autor nos gêneros do livro ✅
+- **Integração Google Books** — busca de obras com resiliência a falhas da fonte ✅
+- **Compartilhamento social** — estatísticas de leitura (dias, páginas) prontas para o template de imagem *(frontend)*
 
 ## 🛠️ Stack
 
@@ -21,135 +23,97 @@ Projeto de portfólio em desenvolvimento, construído com foco em **arquitetura 
 |---|---|
 | Backend | Java 21 (Temurin) · Spring Boot 4.1 · Spring Data JPA |
 | Segurança | Argon2id (Bouncy Castle) · JWT HS512 (JJWT) · Refresh tokens rotativos |
-| Integrações | Google Books API via RestClient (com contrato de resiliência) |
-| Banco de dados | PostgreSQL 16 (Docker) · Flyway (5 migrations versionadas) |
-| Frontend | React *(em breve)* |
+| Integrações | Google Books API via RestClient |
+| Banco de dados | PostgreSQL 16 (Docker) · Flyway (7 migrations versionadas) |
+| Frontend | React + TypeScript *(em desenvolvimento)* |
 | Infraestrutura | Docker Compose · Maven |
 | Versionamento | Git · Conventional Commits |
 
 ## 🔐 Arquitetura de autenticação
 
-O sistema usa o padrão de **dois tokens com responsabilidades opostas**:
+Padrão de **dois tokens com responsabilidades opostas**:
 
 | | Access Token | Refresh Token |
 |---|---|---|
 | Formato | JWT assinado (HS512) | 256 bits aleatórios (SecureRandom) |
 | Vida útil | 15 minutos | 30 dias |
-| Onde vive | Corpo da resposta (memória do cliente) | Cookie `httpOnly` + `SameSite=Strict` com path restrito |
-| Estado no servidor | Stateless (só assinatura) | Registrado no banco (apenas o SHA-256) |
+| Onde vive | Corpo da resposta (memória do cliente) | Cookie `httpOnly` + `SameSite=Strict`, path restrito |
+| Estado no servidor | Stateless | Registrado no banco (apenas SHA-256) |
 | Revogável | Não (expira rápido) | Sim, individualmente ou por família |
 
-**Rotação com detecção de reuso:** cada refresh token é de uso único — ao ser usado, é revogado e substituído por um novo da mesma *família*. Se um token já revogado reaparecer, há duas cópias em circulação (dono + ladrão): a família inteira é revogada em cascata e apenas quem possui a senha real recomeça o ciclo. O roubo se autodetecta e se autolimita.
+- **Rotação com detecção de reuso:** refresh token é de uso único; reuso de um token revogado indica duas cópias em circulação (dono + ladrão) e dispara a revogação em cascata da família inteira
+- **Lockout contra força bruta:** 5 falhas → conta trancada por 15 minutos, com destravamento automático e resposta indistinguível do erro comum (anti-enumeração)
+- **Filtro fail-secure:** toda rota exige `Bearer` token válido; públicas são exceção explícita em whitelist — endpoint novo nasce protegido
+- **Senhas:** Argon2id com salt único; política de 12–128 caracteres (NIST: comprimento sobre complexidade; teto anti-DoS)
 
-**Lockout contra força bruta:** 5 falhas de senha trancam a conta por 15 minutos, com destravamento automático por tempo. A conta trancada responde o mesmo erro genérico de sempre — nenhuma informação vaza para o atacante.
+## 📖 Domínio do produto
 
-**Filtro JWT com whitelist (fail secure):** toda requisição exige `Bearer` token válido; rotas públicas são exceção explícita — endpoint novo já nasce protegido. A identidade vem sempre do token validado, nunca do corpo da requisição.
+- **Acervo compartilhado (cache-aside)** — livros cadastrados uma única vez, com rastreabilidade (`added_by`) e validação em camadas contra dados falsos
+- **Gêneros por folksonomia** — catálogo próprio de 15 gêneros; a classificação vem do leitor que cadastra (as categorias da Google Books são inconsistentes demais para alimentar o produto)
+- **Estante pessoal** — status `QUERO_LER / LENDO / LIDO / ABANDONADO` com transições automáticas e datas carimbadas
+- **Marcador diário** — um registro por livro por dia (releituras atualizam a linha); conclusão **híbrida**: automática ao atingir a última página (com *clamp* de páginas excedentes) ou manual via endpoint dedicado
+- **Placar de credibilidade** — `user_genre_stats` atualizado atomicamente na conclusão (materialização incremental), com guarda anti-inflação contra dupla contagem
+- **Reviews** — uma por leitor por livro (upsert via PUT), exigindo o livro na estante; flag de spoiler para ofuscação no cliente
+- **Mundo Visual (dados)** — endpoint público com densidade por gênero e progresso percentual por livro, calculado no banco
 
-## 📖 Funcionalidades do produto (estado atual)
+## 🔌 API
 
-- **Busca de livros** — integração com a Google Books API, com saneamento defensivo dos dados (campos ausentes, valores inválidos) e resposta 503 quando a fonte externa falha — a indisponibilidade da Google nunca derruba o sistema
-- **Acervo compartilhado (cache-aside)** — livros escolhidos pelos usuários são cadastrados uma única vez, com rastreabilidade de quem adicionou (`added_by`) e validação severa em camadas contra dados falsos
-- **Estante pessoal** — cada usuário organiza suas leituras por status (`QUERO_LER`, `LENDO`, `LIDO`, `ABANDONADO`), com transições automáticas (primeiro progresso promove QUERO_LER → LENDO e carimba a data de início)
-- **Marcador de leitura diário** — registro de progresso com a regra de um log por dia (releituras no mesmo dia atualizam a linha existente), base das futuras estatísticas e do Mundo Visual
-
-## 🛡️ Decisões de segurança
-
-- **Credenciais isoladas do perfil público** — tabelas separadas 1:1; queries de perfil nunca tocam o hash de senha
-- **Senhas com Argon2id** — salt único, custo de memória configurável; senha em texto puro nunca toca o disco
-- **Refresh tokens hasheados (SHA-256)** — busca por hash via índice único elimina timing attacks por design
-- **Proteção anti-IDOR nas consultas** — recursos pessoais são buscados sempre por `id + userId` do token: o registro de outro usuário simplesmente "não existe" para quem pergunta
-- **DTOs nas duas direções** — records de request bloqueiam mass assignment; records de response garantem que só sai o que foi declarado
-- **Validação severa de inputs** — Bean Validation em toda entrada, incluindo whitelists de caracteres, faixas numéricas sãs e URLs de capa restritas a `http(s)` (bloqueio de XSS via atributo)
-- **Enums como whitelist de domínio** — status de leitura inválidos são rejeitados na desserialização, antes de qualquer lógica
-- **Anti-enumeração de contas** — e-mail inexistente, senha errada e conta trancada retornam a mesma resposta
-- **Tratamento global de exceções** — respostas 400/401/404/409/503 estruturadas, sem stack traces
-- **UUIDs como identificadores públicos** — sem enumeração de recursos
-- **Semântica transacional deliberada** — `noRollbackFor` garante que registros de segurança (falhas de login, revogação de família) sobrevivem às exceções que os comunicam
-- **Segredos por variável de ambiente** — `.env` fora do Git (banco, chave JWT, chave da Google)
-- **Schema sob controle explícito** — `ddl-auto=validate` + migrations Flyway auditáveis
-
-## 🔌 API (estado atual)
-
-| Método | Rota | Auth | Descrição | Respostas |
-|---|---|---|---|---|
-| GET | `/health` | pública | Health check | 200 |
-| POST | `/auth/register` | pública | Registro de usuário | 201 · 400 · 409 |
-| POST | `/auth/login` | pública | Login → access token + cookie de refresh | 200 · 400 · 401 |
-| POST | `/auth/refresh` | cookie | Rotaciona o refresh e emite novo access token | 200 · 401 |
-| GET | `/users/me` | Bearer | Perfil do usuário autenticado | 200 · 401 · 404 |
-| GET | `/catalog/search?q=` | Bearer | Busca livros na Google Books | 200 · 400 · 503 |
-| POST | `/catalog/books` | Bearer | Cadastra livro no acervo (cache-aside) | 201 · 400 |
-| POST | `/shelf` | Bearer | Adiciona livro à estante pessoal | 201 · 400 · 404 |
-| PATCH | `/shelf/{id}/progress` | Bearer | Atualiza o marcador de leitura diário | 200 · 400 · 404 |
-| GET | `/shelf` | Bearer | Lista a estante do usuário | 200 |
+| Método | Rota | Auth | Descrição |
+|---|---|---|---|
+| GET | `/health` | pública | Health check |
+| POST | `/auth/register` | pública | Registro |
+| POST | `/auth/login` | pública | Login → access token + cookie refresh |
+| POST | `/auth/refresh` | cookie | Rotaciona refresh, emite novo access |
+| GET | `/users/me` | Bearer | Perfil do autenticado |
+| GET | `/users/{username}/world` | **pública** | Mundo Visual (vitrine social) |
+| GET | `/catalog/search?q=` | Bearer | Busca na Google Books |
+| GET | `/catalog/genres` | Bearer | Catálogo de gêneros |
+| POST | `/catalog/books` | Bearer | Cadastra livro (cache-aside + gêneros) |
+| POST | `/shelf` | Bearer | Adiciona livro à estante |
+| PATCH | `/shelf/{id}/progress` | Bearer | Marcador diário |
+| POST | `/shelf/{id}/finish` | Bearer | Conclusão manual |
+| GET | `/shelf` | Bearer | Estante com dados dos livros (JOIN, sem N+1) |
+| PUT | `/books/{bookId}/review` | Bearer | Cria/edita review |
+| GET | `/books/{bookId}/review` | Bearer | Reviews ordenadas por credibilidade |
 
 ## 🚀 Rodando localmente
 
-**Pré-requisitos:** Java 21 · Docker + Docker Compose · Git · Chave da Google Books API ([console.cloud.google.com](https://console.cloud.google.com), gratuita)
+**Pré-requisitos:** Java 21 · Docker + Compose · Git · chave da Google Books API (gratuita)
 
 ```bash
-# 1. Clone o repositório
 git clone git@github.com:KaiqueZiantoni/literaryworld.git
 cd literaryworld
 
-# 2. Crie o arquivo de segredos (nunca versionado)
 cat > .env << 'EOF'
 DB_USER=literary_app
-DB_PASSWORD=gere-uma-senha-forte-aqui
+DB_PASSWORD=gere-uma-senha-forte
 JWT_SECRET=gere-com-openssl-rand-hex-44
-GOOGLE_BOOKS_API_KEY=sua-chave-do-google-cloud
+GOOGLE_BOOKS_API_KEY=sua-chave
 EOF
 
-# 3. Suba o PostgreSQL
 docker compose up -d
-
-# 4. Exporte as variáveis e rode o backend
 set -a && source .env && set +a
 cd backend && ./mvnw spring-boot:run
 ```
 
-> O banco expõe a porta **5433** no host (evitando conflito com instalações locais na 5432). As 5 migrations criam o schema e semeiam o catálogo de 15 gêneros automaticamente.
+> Banco na porta **5433** (evita conflito com Postgres local). As migrations criam o schema e semeiam os 15 gêneros automaticamente.
 
-## 🗺️ Roadmap e progresso
+## 🗺️ Roadmap — **~60%**
 
-**Progresso estimado: ~35%**
-
-- [x] **Fase 0 — Fundação** *(100%)*: ambiente reprodutível, gestão de segredos, Conventional Commits
-- [x] **Fase 1 — Identidade e sessões seguras** *(100%)*: registro e login com Argon2id, JWT HS512, filtro fail-secure, refresh token rotativo com detecção de reuso, lockout contra força bruta
-- [x] **Fase 2 — Catálogo e marcador** *(~90%)*: busca resiliente na Google Books, acervo com cache-aside e rastreabilidade, estante pessoal, marcador diário com regra de um log por dia *(pendente: conclusão automática ao atingir a última página, estatísticas de leitura)*
-- [ ] **Fase 3 — Reviews e credibilidade**: filtro anti-spoiler, ranking por especialidade de leitor
-- [ ] **Fase 4 — Mundo visual e social**: perfil generativo (Canvas/SVG), imagem de compartilhamento
-- [ ] **Fase 5 — Hardening e lançamento**: HTTPS, testes de segurança, deploy público
-- [ ] **Frontend React**: toda a interface
-
-## 📈 Marcos concluídos
-
-| Marco | Status |
-|---|---|
-| PostgreSQL 16 containerizado · segredos fora do Git | ✅ |
-| Backend Spring Boot 4.1 + Java 21 · 5 migrations Flyway | ✅ |
-| Registro (Argon2id) · Login (anti-enumeração) · Lockout | ✅ |
-| JWT HS512 · Filtro fail-secure · `GET /users/me` | ✅ |
-| Refresh token rotativo · detecção de reuso em cascata | ✅ |
-| Busca Google Books com resiliência (503, saneamento) | ✅ |
-| Acervo cache-aside com `added_by` e validação em camadas | ✅ |
-| Estante pessoal com enum de status e anti-IDOR | ✅ |
-| Marcador diário (um log por dia, releitura atualiza) | ✅ |
-| Conclusão automática de leitura · estatísticas | 🔜 |
-| Reviews com anti-spoiler | 🔜 |
+- [x] **Fase 0 — Fundação** · [x] **Fase 1 — Identidade e sessões** · [x] **Fase 2 — Catálogo e marcador** · [x] **Fase 3 — Reviews e credibilidade** · [x] **Fase 4 — Dados do Mundo Visual e share**
+- [ ] **Frontend React/TS** — telas, integração com auth (interceptor de refresh), Canvas/SVG do Mundo Visual
+- [ ] **Fase 5 — Maturação:** testes automatizados de integração, recuperação de senha + verificação de e-mail, HTTPS/hardening, deploy público
 
 ## 🧭 Dívidas técnicas conhecidas
 
 Registradas de forma deliberada — projeto maduro não é ter zero dívida, é saber quais são:
 
-- Conclusão automática da leitura ao atingir a página final (`finish()` já existe na entidade)
-- Validação do progresso contra o total de páginas do livro
-- `Secure=true` no cookie de refresh em produção (exige HTTPS; TODO no código)
-- Circuit breaker na integração Google Books (hoje: contrato Optional + 503)
-- Exceções de domínio nomeadas para conflitos (padrão iniciado com `InvalidCredentialsException`)
-- UUID v7 no lugar do v4 · JDK da IDE alinhado ao 21 · Rate limiting nos endpoints públicos
-- Endpoint `GET /shelf` sem dados do livro (título/capa) — exigirá join ou resposta composta
+- Testes automatizados (cenários já mapeados pelos testes manuais: reuso de token, lockout, IDOR, clamp)
+- Recuperação de senha por token de uso único + verificação de e-mail (schema já preparado desde a V1)
+- Exceções de domínio nomeadas (UUID malformado hoje responde 409 em vez de 400)
+- CORS para o frontend · `Secure=true` no cookie em produção · rate limiting
+- `WorldService` dedicado (controller cruza módulos) · circuit breaker na Google Books · UUID v7 · flag de privacidade do Mundo
 
 ---
 
-*Projeto em construção ativa — cada fase é concluída com a aplicação funcional de ponta a ponta.*
+*Backend construído com decisões documentadas, ~20 bugs reais resolvidos por diagnóstico metódico, e segurança testada com ataques simulados (roubo de token, força bruta, IDOR).*
