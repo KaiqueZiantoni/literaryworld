@@ -32,7 +32,9 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain chain) throws ServletException, IOException {
 
-        if (PUBLIC_PATHS.contains(request.getRequestURI())) {
+        String path = request.getRequestURI();
+
+        if (PUBLIC_PATHS.contains(path) || isPublicWorldPath(path)) {
             chain.doFilter(request, response);
             return;
         }
@@ -52,6 +54,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         request.setAttribute("userId", userId.get());
         chain.doFilter(request, response);
+    }
+
+    private boolean isPublicWorldPath(String path) {
+        // GET /users/{username}/world — a vitrine pública do Mundo Visual
+        return path.startsWith("/users/") && path.endsWith("/world");
     }
 
     private void reject(HttpServletResponse response) throws IOException {

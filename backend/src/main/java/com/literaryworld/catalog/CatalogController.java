@@ -132,4 +132,11 @@ public class CatalogController {
                 })
                 .toList();
     }
+    @GetMapping("/genres")
+    public ResponseEntity<List<Map<String, Object>>> genres() {
+        var genres = genreRepository.findAll().stream()
+                .map(g -> Map.<String, Object>of("id", g.getId(), "slug", g.getSlug(), "name", g.getName()))
+                .toList();
+        return ResponseEntity.ok(genres);
+    }
 }

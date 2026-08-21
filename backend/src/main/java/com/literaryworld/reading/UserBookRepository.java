@@ -1,5 +1,6 @@
 package com.literaryworld.reading;
 
+import com.literaryworld.user.WorldResponse;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -26,4 +27,18 @@ public interface UserBookRepository extends JpaRepository<UserBook, UUID> {
         ORDER BY ub.createdAt DESC
         """)
     List<ShelfItemResponse> findShelfWithBooks(@Param("userId") UUID userId);
+    @Query("""
+        SELECT new com.literaryworld.user.WorldResponse$WorldBook(
+            b.title,
+            COALESCE(b.coverUrl, ''),
+            CAST(ub.status AS string),
+            CASE WHEN b.pageCount IS NULL OR b.pageCount = 0 THEN 0
+                 ELSE CAST((ub.currentPage * 100.0 / b.pageCount) AS integer) END
+        )
+        FROM UserBook ub
+        JOIN Book b ON b.id = ub.bookId
+        WHERE ub.userId = :userId
+        ORDER BY ub.createdAt DESC
+        """)
+    List<WorldResponse.WorldBook> findWorldBooks(@Param("userId") UUID userId);
 }
