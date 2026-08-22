@@ -32,6 +32,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain chain) throws ServletException, IOException {
 
+        // Preflight CORS (OPTIONS) nunca carrega credenciais — quem o responde é o CorsFilter.
+        // Barrá-lo aqui deixaria toda requisição autenticada do navegador pendurada.
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            chain.doFilter(request, response);
+            return;
+        }
+
         String path = request.getRequestURI();
 
         if (PUBLIC_PATHS.contains(path) || isPublicWorldPath(path)) {
