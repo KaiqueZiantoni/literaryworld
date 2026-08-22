@@ -13,5 +13,6 @@ public record ShelfItemResponse(
         ReadingStatus status,
         int currentPage,
         Instant startedAt,
-        Instant finishedAt
+        Instant finishedAt,
+        String genreSlug
 ) {}
