@@ -1,8 +1,11 @@
+import { useState } from 'react'
 import { AuthProvider, useAuth } from './features/auth/AuthContext'
 import { LoginPage } from './features/auth/LoginPage'
+import { RegisterPage } from './features/auth/RegisterPage'
 
 function AppContent() {
   const { user, loading, logout } = useAuth()
+  const [showRegister, setShowRegister] = useState(false)
 
   if (loading) {
     return (
@@ -13,7 +16,9 @@ function AppContent() {
   }
 
   if (!user) {
-    return <LoginPage onSwitchToRegister={() => alert('registro em breve!')} />
+    return showRegister
+      ? <RegisterPage onSwitchToLogin={() => setShowRegister(false)} />
+      : <LoginPage onSwitchToRegister={() => setShowRegister(true)} />
   }
 
   return (
