@@ -48,6 +48,11 @@ public class UserGenreStats {
         this.pagesRead += pages;
         this.updatedAt = Instant.now();
     }
+    public void unregisterFinishedBook(int pages) {
+        this.booksFinished = Math.max(0, this.booksFinished - 1);
+        this.pagesRead = Math.max(0, this.pagesRead - pages);
+        this.updatedAt = Instant.now();
+    }
 
     public UUID getUserId() { return userId; }
     public Short getGenreId() { return genreId; }

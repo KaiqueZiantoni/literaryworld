@@ -83,6 +83,27 @@ public class ReadingService {
                 });
     }
 
+    @Transactional
+    public Optional<UserBook> reopenReading(UUID userId, UUID userBookId) {
+        return userBookRepository.findByIdAndUserId(userBookId, userId)
+                .map(userBook -> {
+                    if (userBook.getStatus() != ReadingStatus.LIDO) {
+                        return userBook; // só se reabre o que está concluído
+                    }
+
+                    var book = bookRepository.findById(userBook.getBookId()).orElse(null);
+                    if (book != null) {
+                        int pages = book.getPageCount() != null ? book.getPageCount() : 0;
+                        book.getGenres().forEach(genre ->
+                                statsRepository.findById(new UserGenreStatsId(userBook.getUserId(), genre.getId()))
+                                        .ifPresent(stats -> stats.unregisterFinishedBook(pages)));
+                    }
+
+                    userBook.reopen();
+                    return userBook;
+                });
+    }
+
     @Transactional(readOnly = true)
     public List<ShelfItemResponse> getShelf(UUID userId) {
         return userBookRepository.findShelfWithBooks(userId);

@@ -67,7 +67,10 @@ public class UserBook {
         this.status = ReadingStatus.LIDO;
         this.finishedAt = Instant.now();
     }
-
+    public void reopen() {
+        this.status = ReadingStatus.LENDO;
+        this.finishedAt = null;
+    }
     public UUID getId() { return id; }
     public UUID getUserId() { return userId; }
     public UUID getBookId() { return bookId; }

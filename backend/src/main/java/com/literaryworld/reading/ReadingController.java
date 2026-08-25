@@ -88,4 +88,13 @@ public class ReadingController {
                         .body(Map.of("status", 404, "error", "Not Found",
                                 "message", "leitura não encontrada")));
     }
+    @PostMapping("/{userBookId}/reopen")
+    public ResponseEntity<?> reopenReading(@PathVariable UUID userBookId,
+                                           @RequestAttribute("userId") UUID userId) {
+        return readingService.reopenReading(userId, userBookId)
+                .map(userBook -> ResponseEntity.ok((Object) toResponse(userBook)))
+                .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Map.of("status", 404, "error", "Not Found",
+                                "message", "leitura não encontrada")));
+    }
 }

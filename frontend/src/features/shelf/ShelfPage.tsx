@@ -3,11 +3,14 @@ import { useAuth } from '../auth/AuthContext'
 import { useShelf } from './useShelf'
 import { BookCard } from './BookCard'
 import { AddBookModal } from './AddBookModal'
+import { ProgressModal } from './ProgressModal'
+import type { ShelfItem } from '../../api/types'
 
 export function ShelfPage() {
   const { user, logout } = useAuth()
   const { items, loading, error, reload } = useShelf()
   const [showAddModal, setShowAddModal] = useState(false)
+  const [selectedItem, setSelectedItem] = useState<ShelfItem | null>(null)
 
   return (
     <div className="min-h-screen bg-slate-950">
@@ -48,7 +51,7 @@ export function ShelfPage() {
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
           {items.map(item => (
-            <BookCard key={item.id} item={item} onClick={() => alert(`marcador de ${item.title} em breve!`)} />
+            <BookCard key={item.id} item={item} onClick={() => setSelectedItem(item)} />
           ))}
         </div>
       </main>
@@ -57,6 +60,14 @@ export function ShelfPage() {
         <AddBookModal
           onClose={() => setShowAddModal(false)}
           onAdded={reload}
+        />
+      )}
+
+      {selectedItem && (
+        <ProgressModal
+          item={selectedItem}
+          onClose={() => setSelectedItem(null)}
+          onUpdated={reload}
         />
       )}
     </div>
