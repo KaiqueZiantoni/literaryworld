@@ -9,4 +9,5 @@ import java.util.UUID;
 public interface ReadingLogRepository extends JpaRepository<ReadingLog, UUID> {
 
     Optional<ReadingLog> findByUserBookIdAndLogDate(UUID userBookId, LocalDate logDate);
+    void deleteAllByUserBookId(UUID userBookId);
 }

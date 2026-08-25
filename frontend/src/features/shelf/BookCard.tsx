@@ -44,17 +44,43 @@ function progressPercent(item: ShelfItem): number {
   return Math.min(100, Math.round((item.currentPage / item.pageCount) * 100))
 }
 
-export function BookCard({ item, onClick }: { item: ShelfItem; onClick: () => void }) {
+export function BookCard({
+  item,
+  onClick,
+  onRemove,
+}: {
+  item: ShelfItem
+  onClick: () => void
+  onRemove: () => void
+}) {
   const percent = progressPercent(item)
   const isDone = item.status === 'LIDO'
 
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
-      className="group text-left w-full rounded-xl bg-slate-900/80 border border-slate-800 overflow-hidden
+      onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && onClick()}
+      className="group relative text-left w-full rounded-xl bg-slate-900/80 border border-slate-800 overflow-hidden
                  hover:border-amber-400/40 hover:shadow-[0_0_24px_rgba(251,191,36,0.08)]
-                 transition-all duration-300"
+                 transition-all duration-300 cursor-pointer"
     >
+      {/* o X de excluir — aparece no hover do card */}
+      <button
+        onClick={e => {
+          e.stopPropagation()
+          onRemove()
+        }}
+        aria-label={`tirar ${item.title} da mesa`}
+        className="absolute top-2 right-2 z-10 h-7 w-7 rounded-full bg-slate-950/80 border border-slate-700
+                   text-slate-400 hover:text-red-400 hover:border-red-400/50
+                   flex items-center justify-center text-sm font-sans
+                   opacity-0 group-hover:opacity-100 transition-all duration-200"
+      >
+        ✕
+      </button>
+
       {/* Capa tipográfica por gênero — o ramo do CDN está desligado (false &&)
           até a hospedagem própria de capas existir */}
       {false && item.coverUrl ? (
@@ -100,6 +126,6 @@ export function BookCard({ item, onClick }: { item: ShelfItem; onClick: () => vo
               : ''}
         </p>
       </div>
-    </button>
+    </div>
   )
 }

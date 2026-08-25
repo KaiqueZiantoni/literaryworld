@@ -108,6 +108,26 @@ public class ReadingService {
     public List<ShelfItemResponse> getShelf(UUID userId) {
         return userBookRepository.findShelfWithBooks(userId);
     }
+    @Transactional
+    public boolean removeFromShelf(UUID userId, UUID userBookId) {
+        return userBookRepository.findByIdAndUserId(userBookId, userId)
+                .map(userBook -> {
+                    if (userBook.getStatus() == ReadingStatus.LIDO) {
+                        var book = bookRepository.findById(userBook.getBookId()).orElse(null);
+                        if (book != null) {
+                            int pages = book.getPageCount() != null ? book.getPageCount() : 0;
+                            book.getGenres().forEach(genre ->
+                                    statsRepository.findById(new UserGenreStatsId(userId, genre.getId()))
+                                            .ifPresent(stats -> stats.unregisterFinishedBook(pages)));
+                        }
+                    }
+
+                    readingLogRepository.deleteAllByUserBookId(userBookId);
+                    userBookRepository.delete(userBook);
+                    return true;
+                })
+                .orElse(false);
+    }
 
     private void finishAndUpdateStats(UserBook userBook) {
         if (userBook.getStatus() == ReadingStatus.LIDO) {

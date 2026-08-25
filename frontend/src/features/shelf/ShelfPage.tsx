@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
+import { api } from '../../api/client'
 import { useShelf } from './useShelf'
 import { BookCard } from './BookCard'
 import { AddBookModal } from './AddBookModal'
@@ -11,6 +12,18 @@ export function ShelfPage() {
   const { items, loading, error, reload } = useShelf()
   const [showAddModal, setShowAddModal] = useState(false)
   const [selectedItem, setSelectedItem] = useState<ShelfItem | null>(null)
+
+  async function handleRemove(item: ShelfItem) {
+    if (!confirm(`Tirar "${item.title}" da sua mesa? O histórico de leitura dele será apagado.`)) {
+      return
+    }
+    const response = await api(`/shelf/${item.id}`, { method: 'DELETE' })
+    if (response.ok || response.status === 204) {
+      reload()
+    } else {
+      alert('não foi possível remover o livro — tente novamente')
+    }
+  }
 
   return (
     <div className="min-h-screen bg-slate-950">
@@ -51,7 +64,12 @@ export function ShelfPage() {
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
           {items.map(item => (
-            <BookCard key={item.id} item={item} onClick={() => setSelectedItem(item)} />
+            <BookCard
+              key={item.id}
+              item={item}
+              onClick={() => setSelectedItem(item)}
+              onRemove={() => handleRemove(item)}
+            />
           ))}
         </div>
       </main>
