@@ -1,10 +1,13 @@
+import { useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { useShelf } from './useShelf'
 import { BookCard } from './BookCard'
+import { AddBookModal } from './AddBookModal'
 
 export function ShelfPage() {
   const { user, logout } = useAuth()
-  const { items, loading, error } = useShelf()
+  const { items, loading, error, reload } = useShelf()
+  const [showAddModal, setShowAddModal] = useState(false)
 
   return (
     <div className="min-h-screen bg-slate-950">
@@ -34,7 +37,7 @@ export function ShelfPage() {
             className="rounded-lg bg-amber-400/90 hover:bg-amber-300 text-slate-950 font-sans font-medium px-5 py-2.5
                        shadow-[0_0_20px_rgba(251,191,36,0.15)] hover:shadow-[0_0_30px_rgba(251,191,36,0.3)]
                        transition-all duration-300"
-            onClick={() => alert('busca em breve!')}
+            onClick={() => setShowAddModal(true)}
           >
             buscar livro
           </button>
@@ -49,6 +52,13 @@ export function ShelfPage() {
           ))}
         </div>
       </main>
+
+      {showAddModal && (
+        <AddBookModal
+          onClose={() => setShowAddModal(false)}
+          onAdded={reload}
+        />
+      )}
     </div>
   )
 }
