@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { API_URL } from '../../api/client'
 import type { World } from '../../api/types'
+import { ColdStartHint } from '../../components/ColdStartHint'
 import { NightAmbience } from '../../components/NightAmbience'
 import { nightFor } from '../../theme/genres'
 import { WorldMap } from './WorldMap'
@@ -40,6 +41,7 @@ export function WorldPage() {
     return (
       <Curtain>
         <p className="font-pixel text-[10px] text-ember-200/80 lw-blink">CARREGANDO O MUNDO</p>
+        <ColdStartHint />
       </Curtain>
     )
   }

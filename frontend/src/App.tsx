@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { ColdStartHint } from './components/ColdStartHint'
 import { NightAmbience } from './components/NightAmbience'
 import { AuthProvider, useAuth } from './features/auth/AuthContext'
 import { LoginPage } from './features/auth/LoginPage'
@@ -25,6 +26,7 @@ function BootScreen() {
           <rect x="16" y="2" width="4" height="4" fill="#fbbf24" className="lw-blink" />
         </svg>
         <p className="font-pixel text-[10px] text-ember-200/70 lw-blink">ACENDENDO A LUZ</p>
+        <ColdStartHint />
       </div>
     </div>
   )
