@@ -1,1 +1,9 @@
+# Segredos de ambiente
 .env
+
+# Configuracao local do agente e da IDE
+.claude/
+
+# Capturas de tela geradas para divulgacao (ficam fora do versionamento
+# por serem binarios grandes sem referencia no codigo)
+docs/screenshots/
