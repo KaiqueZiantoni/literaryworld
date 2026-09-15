@@ -1,7 +1,5 @@
 package com.literaryworld.user;
 
-import com.literaryworld.reading.UserBookRepository;
-import com.literaryworld.reading.UserGenreStatsRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,15 +16,11 @@ import java.util.UUID;
 public class UserController {
 
     private final UserRepository userRepository;
-    private final UserGenreStatsRepository statsRepository;
-    private final UserBookRepository userBookRepository;
+    private final WorldService worldService;
 
-    public UserController(UserRepository userRepository,
-                          UserGenreStatsRepository statsRepository,
-                          UserBookRepository userBookRepository) {
+    public UserController(UserRepository userRepository, WorldService worldService) {
         this.userRepository = userRepository;
-        this.statsRepository = statsRepository;
-        this.userBookRepository = userBookRepository;
+        this.worldService = worldService;
     }
 
     @GetMapping("/me")
@@ -45,14 +39,9 @@ public class UserController {
 
     @GetMapping("/{username}/world")
     public ResponseEntity<?> world(@PathVariable String username) {
-        return userRepository.findByUsername(username)
-                .map(user -> ResponseEntity.ok((Object) new WorldResponse(
-                        user.getUsername(),
-                        user.getDisplayName(),
-                        statsRepository.findGenreDensity(user.getId()),
-                        userBookRepository.findWorldBooks(user.getId())
-                )))
-                .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND)
+        return worldService.forUsername(username)
+                .<ResponseEntity<?>>map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body(Map.of("status", 404, "error", "Not Found",
                                 "message", "usuário não encontrado")));
     }

@@ -72,4 +72,14 @@ public interface UserBookRepository extends JpaRepository<UserBook, UUID> {
             ORDER BY ub.createdAt DESC
             """)
     List<WorldResponse.WorldBook> findWorldBooks(@Param("userId") UUID userId);
+
+    @Query("""
+            SELECT new com.literaryworld.user.WorldResponse$BookGenre(b.id, g.slug)
+            FROM UserBook ub
+            JOIN Book b ON b.id = ub.bookId
+            JOIN b.genres g
+            WHERE ub.userId = :userId
+            ORDER BY g.id
+            """)
+    List<WorldResponse.BookGenre> findBookGenres(@Param("userId") UUID userId);
 }
