@@ -1,0 +1,52 @@
+# Blueprint do Render para a API.
+#
+# O banco fica de fora de propósito: o Postgres gratuito do Render é APAGADO
+# 30 dias depois de criado, e uma vitrine de portfólio não pode quebrar sozinha
+# em um mês. O DATABASE_URL aponta para um Neon, cujo plano gratuito é
+# permanente. O passo a passo está em DEPLOY.md.
+
+services:
+  - type: web
+    name: literaryworld-api
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      # ── Banco (Neon) ────────────────────────────────────────────────
+      # Formato JDBC, não o postgresql:// que o Neon mostra por padrão:
+      #   jdbc:postgresql://SEU-HOST.neon.tech/literaryworld?sslmode=require
+      - key: DATABASE_URL
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+
+      # ── Segredos ────────────────────────────────────────────────────
+      # Gere um novo para produção: openssl rand -hex 44
+      - key: JWT_SECRET
+        generateValue: true
+      - key: GOOGLE_BOOKS_API_KEY
+        sync: false
+
+      # ── Sessão entre domínios ───────────────────────────────────────
+      # Front na Vercel e API aqui são sites diferentes para o navegador.
+      # Um cookie SameSite=Strict nunca seria enviado, e o refresh falharia
+      # em silêncio a cada 15 minutos.
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: COOKIE_SAME_SITE
+        value: "None"
+
+      # Troque pelo domínio exato que a Vercel gerar.
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+
+      # ── Política de e-mail ──────────────────────────────────────────
+      # Vazio em produção: a porta de serviço de desenvolvimento fecha aqui.
+      - key: EMAIL_TRUSTED_DOMAINS
+        value: ""
