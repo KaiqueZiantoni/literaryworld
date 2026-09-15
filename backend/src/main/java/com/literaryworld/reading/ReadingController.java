@@ -6,7 +6,15 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.Map;
@@ -40,10 +48,10 @@ public class ReadingController {
     public ResponseEntity<?> addToShelf(@Valid @RequestBody AddToShelfRequest request,
                                         @RequestAttribute("userId") UUID userId) {
         return readingService.addToShelf(userId, request.bookId(), request.status())
-                .map(userBook -> ResponseEntity.status(HttpStatus.CREATED).body((Object) toResponse(userBook)))
-                .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(Map.of("status", 404, "error", "Not Found",
-                                "message", "livro não encontrado no acervo")));
+                .<ResponseEntity<?>>map(addition -> ResponseEntity
+                        .status(addition.alreadyOnShelf() ? HttpStatus.OK : HttpStatus.CREATED)
+                        .body(Map.of("item", addition.item(), "alreadyOnShelf", addition.alreadyOnShelf())))
+                .orElseGet(() -> notFound("livro não encontrado no acervo"));
     }
 
     @PatchMapping("/{userBookId}/progress")
@@ -51,10 +59,33 @@ public class ReadingController {
                                             @Valid @RequestBody ProgressRequest request,
                                             @RequestAttribute("userId") UUID userId) {
         return readingService.updateProgress(userId, userBookId, request.page())
-                .map(userBook -> ResponseEntity.ok((Object) toResponse(userBook)))
-                .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(Map.of("status", 404, "error", "Not Found",
-                                "message", "leitura não encontrada")));
+                .<ResponseEntity<?>>map(ResponseEntity::ok)
+                .orElseGet(() -> notFound("leitura não encontrada"));
+    }
+
+    @PostMapping("/{userBookId}/finish")
+    public ResponseEntity<?> finishReading(@PathVariable UUID userBookId,
+                                           @RequestAttribute("userId") UUID userId) {
+        return readingService.finishReading(userId, userBookId)
+                .<ResponseEntity<?>>map(ResponseEntity::ok)
+                .orElseGet(() -> notFound("leitura não encontrada"));
+    }
+
+    @PostMapping("/{userBookId}/reopen")
+    public ResponseEntity<?> reopenReading(@PathVariable UUID userBookId,
+                                           @RequestAttribute("userId") UUID userId) {
+        return readingService.reopenReading(userId, userBookId)
+                .<ResponseEntity<?>>map(ResponseEntity::ok)
+                .orElseGet(() -> notFound("leitura não encontrada"));
+    }
+
+    @DeleteMapping("/{userBookId}")
+    public ResponseEntity<?> removeFromShelf(@PathVariable UUID userBookId,
+                                             @RequestAttribute("userId") UUID userId) {
+        if (readingService.removeFromShelf(userId, userBookId)) {
+            return ResponseEntity.noContent().build();
+        }
+        return notFound("leitura não encontrada");
     }
 
     @GetMapping
@@ -62,42 +93,8 @@ public class ReadingController {
         return ResponseEntity.ok(readingService.getShelf(userId));
     }
 
-    private Map<String, Object> toResponse(UserBook userBook) {
-        return Map.of(
-                "id", userBook.getId(),
-                "bookId", userBook.getBookId(),
-                "status", userBook.getStatus().name(),
-                "currentPage", userBook.getCurrentPage(),
-                "startedAt", userBook.getStartedAt() != null ? userBook.getStartedAt().toString() : "",
-                "finishedAt", userBook.getFinishedAt() != null ? userBook.getFinishedAt().toString() : ""
-        );
-    }
-    @PostMapping("/{userBookId}/finish")
-    public ResponseEntity<?> finishReading(@PathVariable UUID userBookId,
-                                           @RequestAttribute("userId") UUID userId) {
-        return readingService.finishReading(userId, userBookId)
-                .map(userBook -> ResponseEntity.ok((Object) toResponse(userBook)))
-                .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(Map.of("status", 404, "error", "Not Found",
-                                "message", "leitura não encontrada")));
-    }
-    @PostMapping("/{userBookId}/reopen")
-    public ResponseEntity<?> reopenReading(@PathVariable UUID userBookId,
-                                           @RequestAttribute("userId") UUID userId) {
-        return readingService.reopenReading(userId, userBookId)
-                .map(userBook -> ResponseEntity.ok((Object) toResponse(userBook)))
-                .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(Map.of("status", 404, "error", "Not Found",
-                                "message", "leitura não encontrada")));
-    }
-    @DeleteMapping("/{userBookId}")
-    public ResponseEntity<?> removeFromShelf(@PathVariable UUID userBookId,
-                                             @RequestAttribute("userId") UUID userId) {
-        if (readingService.removeFromShelf(userId, userBookId)) {
-            return ResponseEntity.noContent().build();
-        }
+    private ResponseEntity<?> notFound(String message) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(Map.of("status", 404, "error", "Not Found",
-                        "message", "leitura não encontrada"));
+                .body(Map.of("status", 404, "error", "Not Found", "message", message));
     }
 }

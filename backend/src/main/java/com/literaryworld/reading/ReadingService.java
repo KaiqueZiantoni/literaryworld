@@ -27,33 +27,32 @@ public class ReadingService {
         this.statsRepository = statsRepository;
     }
 
+    /** Resultado de adicionar à estante: o item e se ele já morava lá. */
+    public record ShelfAddition(ShelfItemResponse item, boolean alreadyOnShelf) {}
+
     @Transactional
-    public Optional<UserBook> addToShelf(UUID userId, UUID bookId, ReadingStatus status) {
+    public Optional<ShelfAddition> addToShelf(UUID userId, UUID bookId, ReadingStatus status) {
         if (bookRepository.findById(bookId).isEmpty()) {
             return Optional.empty();
         }
 
         var existing = userBookRepository.findByUserIdAndBookId(userId, bookId);
         if (existing.isPresent()) {
-            return existing;
+            return describe(userId, existing.get().getId()).map(item -> new ShelfAddition(item, true));
         }
 
-        var userBook = new UserBook(UUID.randomUUID(), userId, bookId, status);
-        return Optional.of(userBookRepository.save(userBook));
+        var userBook = userBookRepository.save(new UserBook(UUID.randomUUID(), userId, bookId, status));
+        return describe(userId, userBook.getId()).map(item -> new ShelfAddition(item, false));
     }
 
     @Transactional
-    public Optional<UserBook> updateProgress(UUID userId, UUID userBookId, int page) {
+    public Optional<ShelfItemResponse> updateProgress(UUID userId, UUID userBookId, int page) {
         return userBookRepository.findByIdAndUserId(userBookId, userId)
-                .map(userBook -> {
-                    int effectivePage = page;
-
+                .flatMap(userBook -> {
                     var book = bookRepository.findById(userBook.getBookId()).orElse(null);
                     Integer totalPages = book != null ? book.getPageCount() : null;
 
-                    if (totalPages != null && effectivePage > totalPages) {
-                        effectivePage = totalPages;
-                    }
+                    int effectivePage = totalPages != null && page > totalPages ? totalPages : page;
 
                     userBook.updateProgress(effectivePage);
 
@@ -61,34 +60,27 @@ public class ReadingService {
                         finishAndUpdateStats(userBook);
                     }
 
-                    var today = LocalDate.now();
-                    int pageForLog = effectivePage;
-                    readingLogRepository.findByUserBookIdAndLogDate(userBookId, today)
-                            .ifPresentOrElse(
-                                    log -> log.updatePage(pageForLog),
-                                    () -> readingLogRepository.save(
-                                            new ReadingLog(UUID.randomUUID(), userBookId, today, pageForLog))
-                            );
+                    recordDailyLog(userBookId, effectivePage);
 
-                    return userBook;
+                    return describe(userId, userBookId);
                 });
     }
 
     @Transactional
-    public Optional<UserBook> finishReading(UUID userId, UUID userBookId) {
+    public Optional<ShelfItemResponse> finishReading(UUID userId, UUID userBookId) {
         return userBookRepository.findByIdAndUserId(userBookId, userId)
-                .map(userBook -> {
+                .flatMap(userBook -> {
                     finishAndUpdateStats(userBook);
-                    return userBook;
+                    return describe(userId, userBookId);
                 });
     }
 
     @Transactional
-    public Optional<UserBook> reopenReading(UUID userId, UUID userBookId) {
+    public Optional<ShelfItemResponse> reopenReading(UUID userId, UUID userBookId) {
         return userBookRepository.findByIdAndUserId(userBookId, userId)
-                .map(userBook -> {
+                .flatMap(userBook -> {
                     if (userBook.getStatus() != ReadingStatus.LIDO) {
-                        return userBook; // só se reabre o que está concluído
+                        return describe(userId, userBookId); // só se reabre o que está concluído
                     }
 
                     var book = bookRepository.findById(userBook.getBookId()).orElse(null);
@@ -100,7 +92,7 @@ public class ReadingService {
                     }
 
                     userBook.reopen();
-                    return userBook;
+                    return describe(userId, userBookId);
                 });
     }
 
@@ -108,6 +100,7 @@ public class ReadingService {
     public List<ShelfItemResponse> getShelf(UUID userId) {
         return userBookRepository.findShelfWithBooks(userId);
     }
+
     @Transactional
     public boolean removeFromShelf(UUID userId, UUID userBookId) {
         return userBookRepository.findByIdAndUserId(userBookId, userId)
@@ -127,6 +120,24 @@ public class ReadingService {
                     return true;
                 })
                 .orElse(false);
+    }
+
+    /**
+     * Relê o item pela projeção da estante para que a resposta chegue ao cliente já
+     * com título, capa, gênero e o status recalculado — ele aplica o resultado sem
+     * pedir a estante inteira de novo.
+     */
+    private Optional<ShelfItemResponse> describe(UUID userId, UUID userBookId) {
+        return userBookRepository.findShelfItem(userBookId, userId);
+    }
+
+    private void recordDailyLog(UUID userBookId, int page) {
+        var today = LocalDate.now();
+        readingLogRepository.findByUserBookIdAndLogDate(userBookId, today)
+                .ifPresentOrElse(
+                        log -> log.updatePage(page),
+                        () -> readingLogRepository.save(new ReadingLog(UUID.randomUUID(), userBookId, today, page))
+                );
     }
 
     private void finishAndUpdateStats(UserBook userBook) {
