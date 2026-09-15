@@ -46,8 +46,10 @@ public class CatalogController {
                             "message", "parâmetro de busca inválido"));
         }
 
-        return googleBooksClient.search(q.trim())
-                .map(items -> ResponseEntity.ok((Object) Map.of("results", toResults(items))))
+        String query = q.trim();
+        return googleBooksClient.search(query)
+                .map(items -> ResponseEntity.ok((Object) Map.of(
+                        "results", toResults(BookSearchRanking.byRelevance(items, query)))))
                 .orElse(ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                         .body(Map.of("status", 503, "error", "Service Unavailable",
                                 "message", "busca temporariamente indisponível")));
