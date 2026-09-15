@@ -1,12 +1,322 @@
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Inter:wght@400;500;600;700&family=Press+Start+2P&display=swap');
 @import "tailwindcss";
+
+/* ═══════════════════════════════════════════════════════════════════
+   LiteraryWorld — sistema visual
+   A biblioteca à noite encontra o cartucho de 32 bits: tipografia de
+   livro para o texto, pixel para o jogo, cor saturada para o mundo.
+   ═══════════════════════════════════════════════════════════════════ */
 
 @theme {
   --font-display: "Cinzel", serif;
   --font-serif: "EB Garamond", serif;
   --font-sans: "Inter", sans-serif;
+  --font-pixel: "Press Start 2P", monospace;
+
+  /* a tinta da interface */
+  --color-ink-950: #05060f;
+  --color-ink-900: #0a0d1c;
+  --color-ink-850: #0f1428;
+  --color-ink-800: #161d38;
+  --color-ink-700: #24304f;
+  --color-ink-600: #38476c;
+
+  /* a luz de leitura */
+  --color-ember-100: #fef3c7;
+  --color-ember-200: #fde68a;
+  --color-ember-300: #fcd34d;
+  --color-ember-400: #fbbf24;
+  --color-ember-500: #f59e0b;
+
+  /* os acentos geek */
+  --color-arcade-400: #a78bfa;
+  --color-arcade-500: #8b5cf6;
+  --color-neon-400: #22d3ee;
+  --color-neon-500: #06b6d4;
+  --color-quest-400: #4ade80;
+  --color-quest-500: #22c55e;
+  --color-danger-400: #f87171;
+
+  --shadow-glow-sm: 0 0 20px rgba(251, 191, 36, 0.18);
+  --shadow-glow: 0 0 34px rgba(251, 191, 36, 0.28);
+  --shadow-glow-lg: 0 0 56px rgba(251, 191, 36, 0.4);
+
+  --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 html {
   font-size: 17px;
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--color-ink-950);
+  color: #e2e8f0;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Uma barra de rolagem que não destoa do resto */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-ink-700) transparent;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--color-ink-700);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--color-ink-600); background-clip: content-box; }
+
+::selection {
+  background: rgba(251, 191, 36, 0.28);
+  color: var(--color-ember-100);
+}
+
+:focus-visible {
+  outline: 2px solid rgba(251, 191, 36, 0.7);
+  outline-offset: 2px;
+}
+
+/* ─── Movimento ─────────────────────────────────────────────────── */
+
+@keyframes lw-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes lw-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes lw-pop {
+  0%   { opacity: 0; transform: scale(0.94) translateY(10px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes lw-slide-in-right {
+  from { opacity: 0; transform: translateX(28px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes lw-shimmer {
+  from { background-position: -420px 0; }
+  to   { background-position: 420px 0; }
+}
+
+/* A barra de XP tem duas camadas: o brilho que corre e a cor que fica parada.
+   `background-position` anima TODAS as camadas de uma vez, então a posição da
+   segunda precisa ser repetida fixa aqui — sem isso a cor sai de quadro e a
+   barra de um livro concluído aparece vazia. */
+@keyframes lw-xp-shimmer {
+  from { background-position: -120px 0, 0 0; }
+  to   { background-position: 520px 0, 0 0; }
+}
+
+@keyframes lw-bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-5px); }
+}
+
+@keyframes lw-blink {
+  0%, 45%  { opacity: 1; }
+  55%, 100%{ opacity: 0.15; }
+}
+
+@keyframes lw-sheen {
+  0%   { transform: translateX(-130%) skewX(-18deg); }
+  60%, 100% { transform: translateX(230%) skewX(-18deg); }
+}
+
+.lw-fade-in  { animation: lw-fade-in 0.25s ease-out both; }
+.lw-rise     { animation: lw-rise 0.45s var(--ease-spring) both; }
+.lw-pop      { animation: lw-pop 0.32s var(--ease-spring) both; }
+.lw-toast-in { animation: lw-slide-in-right 0.32s var(--ease-spring) both; }
+.lw-bob      { animation: lw-bob 3.2s ease-in-out infinite; }
+.lw-blink    { animation: lw-blink 1.1s steps(1) infinite; }
+
+/* entrada escalonada dos cards da estante */
+.lw-stagger > * { animation: lw-rise 0.5s var(--ease-spring) both; }
+.lw-stagger > *:nth-child(1)  { animation-delay: 0.02s; }
+.lw-stagger > *:nth-child(2)  { animation-delay: 0.05s; }
+.lw-stagger > *:nth-child(3)  { animation-delay: 0.08s; }
+.lw-stagger > *:nth-child(4)  { animation-delay: 0.11s; }
+.lw-stagger > *:nth-child(5)  { animation-delay: 0.14s; }
+.lw-stagger > *:nth-child(6)  { animation-delay: 0.17s; }
+.lw-stagger > *:nth-child(7)  { animation-delay: 0.20s; }
+.lw-stagger > *:nth-child(8)  { animation-delay: 0.23s; }
+.lw-stagger > *:nth-child(9)  { animation-delay: 0.26s; }
+.lw-stagger > *:nth-child(10) { animation-delay: 0.29s; }
+
+.lw-skeleton {
+  background-image: linear-gradient(
+    90deg,
+    rgba(36, 48, 79, 0.35) 0%,
+    rgba(56, 71, 108, 0.55) 45%,
+    rgba(36, 48, 79, 0.35) 90%
+  );
+  background-size: 420px 100%;
+  background-repeat: no-repeat;
+  animation: lw-shimmer 1.4s linear infinite;
+}
+
+/* o brilho que atravessa o botão no hover */
+.lw-sheen { position: relative; overflow: hidden; }
+.lw-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 38%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  transform: translateX(-130%) skewX(-18deg);
+  pointer-events: none;
+}
+.lw-sheen:hover::after { animation: lw-sheen 0.75s ease-out; }
+
+/* ─── Superfícies ───────────────────────────────────────────────── */
+
+/* moldura de cartucho: a borda dupla dos menus de console portátil */
+.lw-panel {
+  background: linear-gradient(160deg, rgba(15, 20, 40, 0.94), rgba(10, 13, 28, 0.97));
+  border: 1px solid rgba(251, 191, 36, 0.16);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 24px 60px -24px rgba(0, 0, 0, 0.9);
+}
+
+/* a caixa de diálogo do jogo — cantos quadrados, borda de madeira */
+.lw-dialog-frame {
+  border: 4px solid #2b2314;
+  background: #0d1226;
+  box-shadow:
+    inset 0 0 0 2px rgba(251, 191, 36, 0.28),
+    0 20px 50px -12px rgba(0, 0, 0, 0.85);
+  image-rendering: pixelated;
+}
+
+/* varredura sutil de tela de tubo, só onde o mundo pede */
+.lw-scanlines::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.14) 0px,
+    rgba(0, 0, 0, 0.14) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  mix-blend-mode: multiply;
+  opacity: 0.45;
+}
+
+.lw-pixel { image-rendering: pixelated; shape-rendering: crispEdges; }
+
+/* campos de formulário — uma classe, um comportamento em todo o app */
+.lw-field {
+  width: 100%;
+  border-radius: 0.6rem;
+  background: rgba(5, 6, 15, 0.7);
+  border: 1px solid var(--color-ink-700);
+  padding: 0.85rem 1rem;
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  color: #f1f5f9;
+  transition: border-color 0.25s, box-shadow 0.25s, background-color 0.25s;
+}
+.lw-field::placeholder { color: #64748b; }
+.lw-field:focus {
+  outline: none;
+  border-color: rgba(251, 191, 36, 0.55);
+  background: rgba(5, 6, 15, 0.9);
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.12);
+}
+.lw-field:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* o botão principal */
+.lw-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.6rem;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  padding: 0.8rem 1.4rem;
+  transition: transform 0.2s var(--ease-spring), box-shadow 0.25s, background-color 0.25s, color 0.25s;
+  cursor: pointer;
+}
+.lw-btn:disabled { opacity: 0.5; cursor: wait; transform: none !important; }
+
+.lw-btn-primary {
+  background: linear-gradient(180deg, var(--color-ember-300), var(--color-ember-500));
+  color: #170f02;
+  box-shadow: 0 6px 0 -1px #b45309, var(--shadow-glow-sm);
+}
+.lw-btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 0 -1px #b45309, var(--shadow-glow);
+}
+.lw-btn-primary:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 -1px #b45309, var(--shadow-glow-sm);
+}
+
+.lw-btn-ghost {
+  background: transparent;
+  color: #94a3b8;
+  border: 1px solid var(--color-ink-700);
+}
+.lw-btn-ghost:hover:not(:disabled) {
+  color: var(--color-ember-100);
+  border-color: rgba(251, 191, 36, 0.45);
+  background: rgba(251, 191, 36, 0.06);
+}
+
+.lw-btn-danger {
+  background: transparent;
+  color: var(--color-danger-400);
+  border: 1px solid rgba(248, 113, 113, 0.4);
+}
+.lw-btn-danger:hover:not(:disabled) {
+  background: rgba(248, 113, 113, 0.12);
+  border-color: rgba(248, 113, 113, 0.75);
+}
+
+/* a barra de progresso com carinha de barra de XP */
+.lw-xp {
+  position: relative;
+  height: 0.6rem;
+  border-radius: 999px;
+  background: rgba(5, 6, 15, 0.85);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.8);
+  overflow: hidden;
+}
+.lw-xp-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.7s var(--ease-spring);
+  background-image: linear-gradient(
+    100deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.35) 50%,
+    rgba(255, 255, 255, 0) 100%
+  ), var(--lw-xp-color, linear-gradient(90deg, #f59e0b, #fcd34d));
+  background-size: 90px 100%, 100% 100%;
+  background-repeat: no-repeat, no-repeat;
+  animation: lw-xp-shimmer 2.8s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
