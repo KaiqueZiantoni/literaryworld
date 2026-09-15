@@ -4,18 +4,18 @@
 
 Projeto de portfólio em desenvolvimento, construído com foco em **arquitetura limpa**, **segurança em profundidade** e **boas práticas de engenharia** desde o primeiro commit.
 
-**🏁 Status: backend de produto 100% funcional** — 14 endpoints cobrindo identidade, catálogo, leitura e camada social. Em desenvolvimento: frontend (React/TypeScript) e maturação para produção.
+**🏁 Status: backend de produto completo + frontend navegável** — 17 endpoints cobrindo identidade, catálogo, leitura e camada social, com a estante e o Mundo Visual explorável já em React/TypeScript. Em desenvolvimento: maturação para produção.
 
 ---
 
 ## ✨ O produto
 
-- **Mundo Visual Generativo** — perfil público construído pela densidade de gêneros lidos *(dados prontos; renderização no frontend)*
+- **Mundo Visual Generativo** — mapa explorável em pixel art: cada gênero lido ergue uma vila com paleta própria, e cada livro concluído vira um marco de cenário do seu gênero ✅
 - **Marcador de leitura diário** — progresso registrado dia a dia; o livro "ganha cor" conforme avança ✅
 - **Reviews com filtro anti-spoiler** — avaliações de até 1000 caracteres, ofuscadas por padrão quando marcadas como spoiler ✅
 - **Algoritmo de credibilidade** — reviews ordenadas pelo peso de leitura do autor nos gêneros do livro ✅
 - **Integração Google Books** — busca de obras com resiliência a falhas da fonte ✅
-- **Compartilhamento social** — estatísticas de leitura (dias, páginas) prontas para o template de imagem *(frontend)*
+- **Compartilhamento social** — link público do mundo, copiável direto do mapa ✅
 
 ## 🛠️ Stack
 
@@ -25,7 +25,7 @@ Projeto de portfólio em desenvolvimento, construído com foco em **arquitetura 
 | Segurança | Argon2id (Bouncy Castle) · JWT HS512 (JJWT) · Refresh tokens rotativos |
 | Integrações | Google Books API via RestClient |
 | Banco de dados | PostgreSQL 16 (Docker) · Flyway (7 migrations versionadas) |
-| Frontend | React + TypeScript *(em desenvolvimento)* |
+| Frontend | React 19 + TypeScript · Vite · Tailwind 4 · SVG em pixel art |
 | Infraestrutura | Docker Compose · Maven |
 | Versionamento | Git · Conventional Commits |
 
@@ -45,6 +45,7 @@ Padrão de **dois tokens com responsabilidades opostas**:
 - **Lockout contra força bruta:** 5 falhas → conta trancada por 15 minutos, com destravamento automático e resposta indistinguível do erro comum (anti-enumeração)
 - **Filtro fail-secure:** toda rota exige `Bearer` token válido; públicas são exceção explícita em whitelist — endpoint novo nasce protegido
 - **Senhas:** Argon2id com salt único; política de 12–128 caracteres (NIST: comprimento sobre complexidade; teto anti-DoS)
+- **E-mail que existe de verdade:** quatro camadas no cadastro, da mais barata para a mais cara — sintaxe estrita (TLD alfabético, sem o permissivo `a@b`), domínio reservado por RFC 2606/6761, lista de caixas descartáveis (com herança para subdomínio) e consulta de MX/A no DNS com cache e orçamento de tempo. Rede instável **aceita** o cadastro em vez de derrubá-lo; só reprova o domínio que o DNS afirma não existir
 
 ## 📖 Domínio do produto
 
@@ -73,6 +74,8 @@ Padrão de **dois tokens com responsabilidades opostas**:
 | PATCH | `/shelf/{id}/progress` | Bearer | Marcador diário |
 | POST | `/shelf/{id}/finish` | Bearer | Conclusão manual |
 | GET | `/shelf` | Bearer | Estante com dados dos livros (JOIN, sem N+1) |
+| POST | `/shelf/{id}/reopen` | Bearer | Reabre leitura concluída (com decremento do placar) |
+| DELETE | `/shelf/{id}` | Bearer | Tira o livro da estante, em cascata |
 | PUT | `/books/{bookId}/review` | Bearer | Cria/edita review |
 | GET | `/books/{bookId}/review` | Bearer | Reviews ordenadas por credibilidade |
 
@@ -101,18 +104,20 @@ cd backend && ./mvnw spring-boot:run
 ## 🗺️ Roadmap — **~60%**
 
 - [x] **Fase 0 — Fundação** · [x] **Fase 1 — Identidade e sessões** · [x] **Fase 2 — Catálogo e marcador** · [x] **Fase 3 — Reviews e credibilidade** · [x] **Fase 4 — Dados do Mundo Visual e share**
-- [ ] **Frontend React/TS** — telas, integração com auth (interceptor de refresh), Canvas/SVG do Mundo Visual
-- [ ] **Fase 5 — Maturação:** testes automatizados de integração, recuperação de senha + verificação de e-mail, HTTPS/hardening, deploy público
+- [x] **Frontend React/TS** — entrada, estante com marcador diário e Mundo Visual explorável (SVG em pixel art, colisão, viagem rápida entre vilas)
+- [ ] **Fase 5 — Maturação:** testes automatizados de integração, recuperação de senha + **verificação de posse do e-mail por link**, HTTPS/hardening, deploy público
 
 ## 🧭 Dívidas técnicas conhecidas
 
 Registradas de forma deliberada — projeto maduro não é ter zero dívida, é saber quais são:
 
 - Testes automatizados (cenários já mapeados pelos testes manuais: reuso de token, lockout, IDOR, clamp)
-- Recuperação de senha por token de uso único + verificação de e-mail (schema já preparado desde a V1)
+- **Posse do e-mail não é provada.** A validação de cadastro garante que o endereço *pode* existir; só o link de confirmação prova que é de quem se cadastrou. Falta o envio (SMTP) — a coluna `email_verified_at` espera desde a V1
+- Recuperação de senha por token de uso único
 - Exceções de domínio nomeadas (UUID malformado hoje responde 409 em vez de 400)
-- CORS para o frontend · `Secure=true` no cookie em produção · rate limiting
-- `WorldService` dedicado (controller cruza módulos) · circuit breaker na Google Books · UUID v7 · flag de privacidade do Mundo
+- `Secure=true` no cookie em produção · rate limiting
+- Hospedagem própria das capas (hoje vêm da Google Books, com degradação para capa tipográfica)
+- Circuit breaker na Google Books · UUID v7 · flag de privacidade do Mundo
 
 ---
 
