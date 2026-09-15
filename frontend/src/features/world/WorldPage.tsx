@@ -1,113 +1,125 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
+import { API_URL } from '../../api/client'
+import type { World } from '../../api/types'
+import { NightAmbience } from '../../components/NightAmbience'
+import { nightFor } from '../../theme/genres'
+import { WorldMap } from './WorldMap'
 
-const API_URL = 'http://localhost:8080'
-
-interface WorldGenre {
-  slug: string
-  name: string
-  booksFinished: number
-  pagesRead: number
-}
-
-interface WorldBook {
-  title: string
-  coverUrl: string
-  status: string
-  progressPercent: number
-}
-
-interface World {
-  username: string
-  displayName: string
-  genres: WorldGenre[]
-  books: WorldBook[]
-}
+type State =
+  | { status: 'loading' }
+  | { status: 'missing' }
+  | { status: 'offline' }
+  | { status: 'ready'; world: World }
 
 export function WorldPage() {
   const { username } = useParams()
-  const [world, setWorld] = useState<World | null>(null)
-  const [notFound, setNotFound] = useState(false)
+  const [state, setState] = useState<State>({ status: 'loading' })
 
   useEffect(() => {
+    let cancelled = false
+    setState({ status: 'loading' })
+
+    // vitrine pública: não manda token, não precisa de sessão
     fetch(`${API_URL}/users/${username}/world`)
-      .then(async r => {
-        if (r.ok) setWorld(await r.json())
-        else setNotFound(true)
+      .then(async response => {
+        if (cancelled) return
+        if (response.ok) setState({ status: 'ready', world: await response.json() })
+        else setState({ status: 'missing' })
       })
-      .catch(() => setNotFound(true))
+      .catch(() => {
+        if (!cancelled) setState({ status: 'offline' })
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [username])
 
-  if (notFound) {
+  if (state.status === 'loading') {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4">
-        <div className="text-center space-y-2">
-          <p className="font-display text-2xl text-amber-100 tracking-wide">página em branco</p>
-          <p className="font-serif italic text-slate-500">este leitor ainda não escreveu sua história aqui</p>
-        </div>
-      </div>
+      <Curtain>
+        <p className="font-pixel text-[10px] text-ember-200/80 lw-blink">CARREGANDO O MUNDO</p>
+      </Curtain>
     )
   }
 
-  if (!world) {
+  if (state.status === 'offline') {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <p className="font-serif italic text-lg text-amber-100/60 animate-pulse">abrindo o mundo...</p>
-      </div>
+      <Curtain>
+        <p className="font-display text-2xl text-ember-100 tracking-wide">o mundo está fora do ar</p>
+        <p className="font-serif italic text-slate-500">o servidor não respondeu — confira se ele está rodando</p>
+        <BackLink />
+      </Curtain>
     )
   }
 
-  const portals = world.genres.filter(g => g.booksFinished >= 1)
+  if (state.status === 'missing') {
+    return (
+      <Curtain>
+        <p className="font-pixel text-[10px] text-slate-500">PÁGINA EM BRANCO</p>
+        <p className="font-display text-2xl text-ember-100 tracking-wide">ninguém mora aqui</p>
+        <p className="font-serif italic text-slate-500">
+          não existe um leitor com o nome “{username}”
+        </p>
+        <BackLink />
+      </Curtain>
+    )
+  }
+
+  const { world } = state
+  const hasRegions = world.genres.some(genre => genre.booksFinished >= 1)
+
+  if (!hasRegions) {
+    return (
+      <Curtain palette={world.username}>
+        <svg width="110" height="110" viewBox="0 0 48 48" className="mx-auto lw-pixel lw-bob" aria-hidden="true">
+          <rect x="6" y="30" width="36" height="10" fill="#2f6f4e" />
+          <rect x="6" y="30" width="36" height="3" fill="#3f8a62" />
+          <rect x="22" y="18" width="4" height="14" fill="#6b4a22" />
+          <rect x="14" y="8" width="20" height="12" rx="4" fill="#4cb869" />
+          <rect x="18" y="4" width="12" height="9" rx="4" fill="#68d489" />
+          <rect x="21" y="0" width="6" height="5" fill="#fcd34d" className="lw-blink" />
+        </svg>
+        <p className="font-display text-2xl text-ember-100 tracking-wide">
+          o mundo de {world.displayName}
+        </p>
+        <p className="font-serif italic text-slate-400 max-w-md mx-auto leading-relaxed">
+          ainda é só terra batida — cada livro concluído ergue uma região nova, com casas, moradores e
+          um marco para a história lida
+        </p>
+        <BackLink label="ir para a mesa" />
+      </Curtain>
+    )
+  }
 
   return (
-    <div className="min-h-screen bg-slate-950">
-      <header className="border-b border-slate-900 px-6 py-5 max-w-6xl mx-auto flex items-center justify-between">
-        <Link to="/" className="font-display text-2xl font-semibold text-amber-100 tracking-[0.12em] uppercase">
-          Literary<span className="text-amber-400">World</span>
-        </Link>
-      </header>
+    <WorldMap
+      worldUsername={world.username}
+      displayName={world.displayName}
+      genres={world.genres}
+      books={world.books}
+    />
+  )
+}
 
-      <main className="max-w-6xl mx-auto px-6 py-10 space-y-10">
-        <div className="text-center space-y-2">
-          <h1 className="font-display text-4xl text-amber-100 tracking-wide">
-            o mundo de {world.displayName}
-          </h1>
-          <p className="font-serif italic text-lg text-slate-400">
-            @{world.username} · {world.books.length} {world.books.length === 1 ? 'história' : 'histórias'}
-          </p>
-        </div>
-
-        {portals.length === 0 ? (
-          <p className="text-center font-serif italic text-slate-500 py-16">
-            os portais deste mundo ainda estão se formando — cada livro concluído abre um novo caminho
-          </p>
-        ) : (
-          <div className="space-y-4">
-            <h2 className="font-sans text-sm text-slate-500 tracking-widest uppercase text-center">
-              portais abertos
-            </h2>
-            <div className="flex flex-wrap justify-center gap-4">
-              {portals.map(genre => (
-                <button
-                  key={genre.slug}
-                  className="group w-32 h-44 rounded-lg border border-slate-800 hover:border-amber-400/50
-                             flex flex-col items-center justify-center gap-3 px-3
-                             hover:shadow-[0_0_30px_rgba(251,191,36,0.12)] transition-all duration-300"
-                  onClick={() => alert(`o mundo de ${genre.name} abre em breve!`)}
-                >
-                  <span className="font-display text-sm text-amber-100/90 tracking-[0.15em] uppercase text-center leading-relaxed">
-                    {genre.name}
-                  </span>
-                  <span className="h-px w-8 bg-amber-100/30" />
-                  <span className="font-serif italic text-xs text-slate-500 text-center">
-                    {genre.booksFinished} {genre.booksFinished === 1 ? 'história vivida' : 'histórias vividas'}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </main>
+function Curtain({ children, palette }: { children: React.ReactNode; palette?: string }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center px-6">
+      <NightAmbience palette={nightFor(null)} seed={palette ?? 'mundo'} />
+      <div className="text-center space-y-4 lw-rise">{children}</div>
     </div>
+  )
+}
+
+function BackLink({ label = 'voltar' }: { label?: string }) {
+  return (
+    <Link
+      to="/"
+      className="inline-block font-pixel text-[8px] uppercase text-ember-200 border-2 border-ember-400/40
+                 rounded px-4 py-3 hover:bg-ember-400/10 hover:text-ember-100 transition mt-2"
+    >
+      ← {label}
+    </Link>
   )
 }
