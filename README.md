@@ -45,6 +45,7 @@ Padrão de **dois tokens com responsabilidades opostas**:
 - **Lockout contra força bruta:** 5 falhas → conta trancada por 15 minutos, com destravamento automático e resposta indistinguível do erro comum (anti-enumeração)
 - **Filtro fail-secure:** toda rota exige `Bearer` token válido; públicas são exceção explícita em whitelist — endpoint novo nasce protegido
 - **Senhas:** Argon2id com salt único; política de 12–128 caracteres (NIST: comprimento sobre complexidade; teto anti-DoS)
+- **Teto por origem nas rotas caras:** cadastro (Argon2id + DNS), login, refresh e busca têm limite por IP em janela fixa, com `429` e `Retry-After`. O lockout cuida de quem insiste numa conta; o teto pega quem varre muitas
 - **E-mail que existe de verdade:** quatro camadas no cadastro, da mais barata para a mais cara — sintaxe estrita (TLD alfabético, sem o permissivo `a@b`), domínio reservado por RFC 2606/6761, lista de caixas descartáveis (com herança para subdomínio) e consulta de MX/A no DNS com cache e orçamento de tempo. Rede instável **aceita** o cadastro em vez de derrubá-lo; só reprova o domínio que o DNS afirma não existir
 
 ## 📖 Domínio do produto
@@ -115,7 +116,7 @@ Registradas de forma deliberada — projeto maduro não é ter zero dívida, é 
 - **Posse do e-mail não é provada.** A validação de cadastro garante que o endereço *pode* existir; só o link de confirmação prova que é de quem se cadastrou. Falta o envio (SMTP) — a coluna `email_verified_at` espera desde a V1
 - Recuperação de senha por token de uso único
 - Exceções de domínio nomeadas (UUID malformado hoje responde 409 em vez de 400)
-- `Secure=true` no cookie em produção · rate limiting
+- Contador do rate limiting vive na memória: com duas instâncias cada uma conta metade, e aí é hora de Redis
 - Hospedagem própria das capas (hoje vêm da Google Books, com degradação para capa tipográfica)
 - Circuit breaker na Google Books · UUID v7 · flag de privacidade do Mundo
 
