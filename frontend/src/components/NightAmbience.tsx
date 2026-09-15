@@ -1,41 +1,93 @@
-import type { Atmosphere } from './atmospheres'
-import { DEFAULT_ATMOSPHERE } from './atmospheres'
+import { useMemo } from 'react'
+import type { NightPalette } from '../theme/genres'
+import { DEFAULT_THEME, hashText } from '../theme/genres'
 
-export function NightAmbience({ atmosphere = DEFAULT_ATMOSPHERE }: { atmosphere?: Atmosphere }) {
-  const [top, mid, bottom] = atmosphere.sky
+/**
+ * O fundo vivo da interface: um céu que muda de cor conforme o gênero que o
+ * leitor mais lê. Fica atrás de tudo, não intercepta clique e não rola com a página.
+ */
+export function NightAmbience({
+  palette = DEFAULT_THEME.night,
+  seed = 'literaryworld',
+  moonAt = 'right',
+  dim = 0,
+}: {
+  palette?: NightPalette
+  seed?: string
+  /** Onde pendurar a lua — ou 'none', nas telas em que ela cairia sobre o conteúdo. */
+  moonAt?: 'left' | 'right' | 'none'
+  /** Quanto de preto entra na frente do céu. Acima de zero nas telas de leitura,
+      onde a cor do gênero deve ser um tom de fundo, não uma lavagem por cima do texto. */
+  dim?: number
+}) {
+  const [top, mid, bottom] = palette.sky
+
+  // as estrelas nascem de uma semente estável — não trocam de lugar a cada render
+  const stars = useMemo(
+    () =>
+      Array.from({ length: 64 }, (_, index) => ({
+        left: (hashText(seed, index * 3 + 1) % 1000) / 10,
+        top: (hashText(seed, index * 7 + 2) % 900) / 10,
+        size: 1 + (hashText(seed, index * 11 + 3) % 3) * 0.6,
+        delay: (hashText(seed, index * 13 + 5) % 40) / 10,
+        opacity: 0.25 + (hashText(seed, index * 17 + 7) % 60) / 100,
+      })),
+    [seed],
+  )
 
   return (
-    <div className="fixed inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
+    <div className="fixed inset-0 -z-10 pointer-events-none overflow-hidden" aria-hidden="true">
       <div
-        className="absolute inset-0 transition-all duration-1000"
-        style={{ background: `linear-gradient(to bottom, ${top}, ${mid}, ${bottom})` }}
+        className="absolute inset-0 transition-[background] duration-1000"
+        style={{ background: `linear-gradient(to bottom, ${top}, ${mid} 55%, ${bottom})` }}
       />
 
       {/* a aurora — a faixa de luz do gênero atravessando o céu */}
       <div
-        className="absolute -top-20 left-0 right-0 h-[45vh] blur-3xl transition-all duration-1000"
-        style={{
-          background: `linear-gradient(115deg, transparent 15%, ${atmosphere.aurora} 45%, transparent 80%)`,
-        }}
+        className="absolute -top-24 inset-x-0 h-[55vh] blur-3xl transition-[background] duration-1000"
+        style={{ background: `linear-gradient(115deg, transparent 12%, ${palette.aurora} 45%, transparent 82%)` }}
       />
+
+      {/* a lua — a luz de apoio da cena */}
+      {moonAt !== 'none' && (
+        <div
+          className={`absolute top-[9%] h-20 w-20 rounded-full lw-bob transition-colors duration-1000
+                      ${moonAt === 'left' ? 'left-[14%]' : 'right-[12%]'}`}
+          style={{ backgroundColor: palette.moon, boxShadow: `0 0 90px 30px ${palette.moonHalo}` }}
+        />
+      )}
 
       {/* o horizonte — a cidade distante brilhando no rodapé */}
       <div
-        className="absolute bottom-0 inset-x-0 h-72 blur-2xl transition-all duration-1000"
-        style={{ background: `linear-gradient(to top, ${atmosphere.horizon}, transparent)` }}
+        className="absolute bottom-0 inset-x-0 h-80 blur-2xl transition-[background] duration-1000"
+        style={{ background: `linear-gradient(to top, ${palette.horizon}, transparent)` }}
       />
 
-      {/* estrelas */}
-      <div
-        className="absolute inset-0 opacity-60"
-        style={{
-          backgroundImage:
-            'radial-gradient(1px 1px at 15% 25%, rgba(255,255,255,0.8), transparent), radial-gradient(1px 1px at 45% 12%, rgba(255,255,255,0.6), transparent), radial-gradient(1.5px 1.5px at 75% 30%, rgba(255,255,255,0.7), transparent), radial-gradient(1px 1px at 30% 55%, rgba(255,255,255,0.5), transparent), radial-gradient(1px 1px at 88% 65%, rgba(255,255,255,0.6), transparent), radial-gradient(1px 1px at 60% 80%, rgba(255,255,255,0.4), transparent), radial-gradient(1.5px 1.5px at 10% 85%, rgba(255,255,255,0.5), transparent), radial-gradient(1px 1px at 95% 15%, rgba(255,255,255,0.7), transparent)',
-        }}
-      />
+      {stars.map((star, index) => (
+        <span
+          key={index}
+          className="absolute rounded-full bg-white"
+          style={{
+            left: `${star.left}%`,
+            top: `${star.top}%`,
+            width: star.size,
+            height: star.size,
+            opacity: star.opacity,
+            animation: `lw-blink ${2.4 + star.delay}s steps(1) infinite`,
+          }}
+        />
+      ))}
 
-      {/* vinheta suave */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_50%,rgba(0,0,0,0.30)_100%)]" />
+      {/* vinheta — puxa o olho para o centro da página */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_45%,rgba(0,0,0,0.55)_100%)]" />
+
+      {/* o véu que devolve o contraste ao texto por cima */}
+      {dim > 0 && (
+        <div
+          className="absolute inset-0 transition-opacity duration-1000"
+          style={{ backgroundColor: '#05060f', opacity: dim }}
+        />
+      )}
     </div>
   )
 }

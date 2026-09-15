@@ -1,158 +1,222 @@
-import { useState } from 'react'
-import { api } from '../../api/client'
+import { useMemo, useState } from 'react'
+import { api, errorMessage } from '../../api/client'
 import type { ShelfItem } from '../../api/types'
+import { progressPercent } from '../../api/types'
+import { themeFor } from '../../theme/genres'
+import { Modal } from '../../ui/Modal'
+import { useToast } from '../../ui/Toast'
+import { BookCover } from './BookCover'
 
 interface Props {
   item: ShelfItem
   onClose: () => void
-  onUpdated: () => void
+  onApply: (item: ShelfItem) => void
 }
 
-export function ProgressModal({ item, onClose, onUpdated }: Props) {
-  const [page, setPage] = useState(item.currentPage > 0 ? String(item.currentPage) : '')
-  const [error, setError] = useState<string | null>(null)
+const QUICK_STEPS = [1, 5, 10, 25]
+
+export function ProgressModal({ item, onClose, onApply }: Props) {
+  const toast = useToast()
+  const total = item.pageCount ?? 0
+  const [page, setPage] = useState(item.currentPage)
   const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const isDone = item.status === 'LIDO'
+  const theme = themeFor(item.genreSlug)
 
-  async function updateProgress() {
-    const pageNumber = Number(page)
-    if (!page.trim() || isNaN(pageNumber) || pageNumber < 0) {
-      setError('digite um número de página válido')
-      return
-    }
-    setSubmitting(true)
+  const preview = useMemo(() => {
+    if (isDone) return 100
+    if (!total) return progressPercent(item)
+    return Math.min(100, Math.round((page / total) * 100))
+  }, [isDone, total, page, item])
+
+  const pagesLeft = total > 0 ? Math.max(0, total - page) : null
+  const changed = page !== item.currentPage
+
+  function nudge(delta: number) {
     setError(null)
-
-    const response = await api(`/shelf/${item.id}/progress`, {
-      method: 'PATCH',
-      body: JSON.stringify({ page: pageNumber }),
+    setPage(current => {
+      const next = current + delta
+      if (next < 0) return 0
+      if (total > 0 && next > total) return total
+      return next
     })
-
-    setSubmitting(false)
-    if (!response.ok) {
-      setError('não foi possível salvar o progresso')
-      return
-    }
-
-    onUpdated()
-    onClose()
   }
 
-  async function finishBook() {
+  async function send(path: string, options: RequestInit, successMessage: string) {
     setSubmitting(true)
     setError(null)
-
-    const response = await api(`/shelf/${item.id}/finish`, { method: 'POST' })
-
-    setSubmitting(false)
-    if (!response.ok) {
-      setError('não foi possível concluir a leitura')
-      return
+    try {
+      const response = await api(path, options)
+      if (!response.ok) {
+        setError(await errorMessage(response, 'não foi possível salvar agora'))
+        return
+      }
+      const updated: ShelfItem = await response.json()
+      onApply(updated)
+      toast.success(successMessage)
+      onClose()
+    } catch {
+      setError('o servidor não respondeu — tente de novo')
+    } finally {
+      setSubmitting(false)
     }
-
-    onUpdated()
-    onClose()
   }
 
-  async function reopenBook() {
-    setSubmitting(true)
-    setError(null)
+  const saveProgress = () =>
+    send(`/shelf/${item.id}/progress`, { method: 'PATCH', body: JSON.stringify({ page }) },
+      total > 0 && page >= total ? `"${item.title}" concluído` : 'marcador guardado')
 
-    const response = await api(`/shelf/${item.id}/reopen`, { method: 'POST' })
+  const finishBook = () =>
+    send(`/shelf/${item.id}/finish`, { method: 'POST' }, `"${item.title}" entrou para as histórias vividas`)
 
-    setSubmitting(false)
-    if (!response.ok) {
-      setError('não foi possível reabrir a leitura')
-      return
-    }
-
-    onUpdated()
-    onClose()
-  }
+  const reopenBook = () =>
+    send(`/shelf/${item.id}/reopen`, { method: 'POST' }, 'leitura reaberta')
 
   return (
-    <div
-      className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center px-4"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <h2 className="font-display text-lg text-amber-100 tracking-wide truncate">{item.title}</h2>
-            <p className="font-sans text-sm text-slate-500 truncate">{item.authors}</p>
-          </div>
-          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 font-sans text-sm shrink-0">
-            fechar
-          </button>
-        </div>
+    <Modal onClose={onClose} size="md" title={item.title} subtitle={item.authors}>
+      <div className="flex gap-5">
+        <BookCover
+          title={item.title}
+          authors={item.authors}
+          coverUrl={item.coverUrl}
+          genreSlug={item.genreSlug}
+          className="w-24 shrink-0 aspect-[2/3] rounded-lg shadow-2xl"
+        />
 
-        {isDone ? (
-          <div className="space-y-4">
-            <p className="font-serif italic text-emerald-400/90">
-              história concluída
-              {item.pageCount ? ` — ${item.pageCount} páginas vividas` : ''}
-            </p>
-            <div className="border-t border-slate-800 pt-4">
-              <button
-                onClick={reopenBook}
-                disabled={submitting}
-                className="w-full rounded-lg border border-amber-400/50 text-amber-300 font-sans font-medium py-2.5
-                           hover:bg-amber-400/10 hover:border-amber-400 hover:text-amber-200
-                           shadow-[0_0_12px_rgba(251,191,36,0.08)]
-                           transition-all duration-300 disabled:opacity-50"
-              >
-                {submitting ? 'reabrindo...' : 'reabrir leitura'}
-              </button>
+        <div className="grow min-w-0 space-y-4">
+          <div className="space-y-2">
+            <div className="flex items-end justify-between">
+              <span className="font-pixel text-[9px] uppercase tracking-wider" style={{ color: theme.world.accent }}>
+                {isDone ? 'concluído' : 'progresso'}
+              </span>
+              <span className="font-pixel text-[13px] text-ember-200 tabular-nums">{preview}%</span>
             </div>
+            <div className="lw-xp h-2.5">
+              <div
+                className="lw-xp-fill"
+                style={{
+                  width: `${preview}%`,
+                  backgroundImage: `linear-gradient(90deg, ${theme.world.roofShade}, ${theme.world.accent})`,
+                  animation: 'none',
+                }}
+              />
+            </div>
+            <p className="font-serif italic text-sm text-slate-500">
+              {isDone
+                ? total
+                  ? `${total} páginas vividas`
+                  : 'história fechada'
+                : pagesLeft === null
+                  ? 'este livro não tem contagem de páginas no acervo'
+                  : pagesLeft === 0
+                    ? 'a última página está a um marcador de distância'
+                    : `faltam ${pagesLeft} páginas`}
+            </p>
           </div>
-        ) : (
-          <>
-            <div className="space-y-2">
-              <label className="font-sans text-sm text-slate-400">
-                em que página você parou hoje?
-                {item.pageCount ? <span className="text-slate-600"> (de {item.pageCount})</span> : ''}
-              </label>
+
+          {isDone ? (
+            <button onClick={reopenBook} disabled={submitting} className="lw-btn lw-btn-ghost w-full">
+              {submitting ? 'reabrindo...' : 'reabrir leitura'}
+            </button>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <label htmlFor="page-input" className="font-sans text-sm text-slate-400 block">
+                  em que página você parou hoje?
+                </label>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => nudge(-1)}
+                    disabled={submitting || page <= 0}
+                    aria-label="uma página a menos"
+                    className="lw-btn lw-btn-ghost h-11 w-11 !px-0 text-lg"
+                  >
+                    −
+                  </button>
+                  <input
+                    id="page-input"
+                    autoFocus
+                    type="number"
+                    min={0}
+                    max={total || undefined}
+                    value={page}
+                    onChange={event => {
+                      setError(null)
+                      const parsed = Number(event.target.value)
+                      setPage(Number.isFinite(parsed) ? Math.max(0, parsed) : 0)
+                    }}
+                    onKeyDown={event => event.key === 'Enter' && changed && saveProgress()}
+                    className="lw-field text-center tabular-nums text-lg"
+                  />
+                  <button
+                    onClick={() => nudge(1)}
+                    disabled={submitting || (total > 0 && page >= total)}
+                    aria-label="uma página a mais"
+                    className="lw-btn lw-btn-ghost h-11 w-11 !px-0 text-lg"
+                  >
+                    +
+                  </button>
+                </div>
+
+                {total > 0 && (
+                  <input
+                    type="range"
+                    min={0}
+                    max={total}
+                    value={Math.min(page, total)}
+                    onChange={event => setPage(Number(event.target.value))}
+                    className="w-full accent-ember-400 cursor-pointer"
+                    aria-label="arrastar até a página"
+                  />
+                )}
+
+                <div className="flex flex-wrap gap-1.5">
+                  {QUICK_STEPS.map(step => (
+                    <button
+                      key={step}
+                      onClick={() => nudge(step)}
+                      disabled={submitting || (total > 0 && page >= total)}
+                      className="font-sans text-xs px-2.5 py-1.5 rounded-md border border-ink-700 text-slate-400
+                                 hover:border-ember-400/50 hover:text-ember-100 hover:bg-ember-400/5
+                                 transition-all duration-200 disabled:opacity-40"
+                    >
+                      +{step}
+                    </button>
+                  ))}
+                  {total > 0 && (
+                    <button
+                      onClick={() => setPage(total)}
+                      disabled={submitting || page >= total}
+                      className="font-sans text-xs px-2.5 py-1.5 rounded-md border border-quest-400/40 text-quest-400
+                                 hover:bg-quest-500/10 transition-all duration-200 disabled:opacity-40"
+                    >
+                      última página
+                    </button>
+                  )}
+                </div>
+              </div>
+
               <div className="flex gap-2">
-                <input
-                  autoFocus
-                  type="number"
-                  min={0}
-                  placeholder={String(item.currentPage)}
-                  value={page}
-                  onChange={e => setPage(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && updateProgress()}
-                  className="flex-1 rounded-lg bg-slate-950 border border-slate-800 px-4 py-3 text-base text-slate-100 placeholder-slate-600
-                             focus:outline-none focus:border-amber-400/40 font-sans"
-                />
                 <button
-                  onClick={updateProgress}
-                  disabled={submitting}
-                  className="rounded-lg bg-amber-400/90 hover:bg-amber-300 text-slate-950 font-sans font-medium px-5
-                             transition-all duration-300 disabled:opacity-50"
+                  onClick={saveProgress}
+                  disabled={submitting || !changed}
+                  className="lw-btn lw-btn-primary lw-sheen grow disabled:!opacity-40 disabled:!cursor-not-allowed"
                 >
-                  {submitting ? '...' : 'marcar'}
+                  {submitting ? 'guardando...' : changed ? 'guardar marcador' : 'sem mudança'}
+                </button>
+                <button onClick={finishBook} disabled={submitting} className="lw-btn lw-btn-ghost">
+                  terminei
                 </button>
               </div>
-            </div>
-
-            <div className="border-t border-slate-800 pt-4">
-              <button
-                onClick={finishBook}
-                disabled={submitting}
-                className="w-full font-sans text-sm text-slate-400 hover:text-emerald-300 transition-colors disabled:opacity-50"
-              >
-                terminei este livro
-              </button>
-            </div>
-          </>
-        )}
-
-        {error && <p className="font-sans text-sm text-red-400/90 text-center">{error}</p>}
+            </>
+          )}
+        </div>
       </div>
-    </div>
+
+      {error && <p className="font-sans text-sm text-danger-400 text-center mt-4">{error}</p>}
+    </Modal>
   )
 }

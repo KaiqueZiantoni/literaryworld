@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { api, setAccessToken } from '../../api/client'
 
@@ -10,88 +10,121 @@ interface User {
   createdAt: string
 }
 
+/** Erro de autenticação já separado: a frase geral e, quando houver, o campo culpado. */
+export interface AuthError {
+  message: string
+  fields?: Record<string, string>
+}
+
 interface AuthContextType {
   user: User | null
   loading: boolean
-  login: (email: string, password: string) => Promise<string | null>
-  register: (username: string, displayName: string, email: string, password: string) => Promise<string | null>
+  login: (email: string, password: string) => Promise<AuthError | null>
+  register: (username: string, displayName: string, email: string, password: string) => Promise<AuthError | null>
   logout: () => void
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
 
+const OFFLINE: AuthError = { message: 'o servidor não respondeu — ele está no ar?' }
+
+async function toAuthError(response: Response, fallback: string): Promise<AuthError> {
+  try {
+    const body = await response.json()
+    if (body?.fields) {
+      const fields = body.fields as Record<string, string>
+      return { message: Object.values(fields).join(' · '), fields }
+    }
+    return { message: body?.message ?? fallback }
+  } catch {
+    return { message: fallback }
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
-  async function fetchMe() {
+  const fetchMe = useCallback(async () => {
     const response = await api('/users/me')
-    if (response.ok) {
-      setUser(await response.json())
-    }
-  }
+    if (response.ok) setUser(await response.json())
+  }, [])
 
   // Ao abrir o app: tenta restaurar a sessão pelo cookie de refresh
   useEffect(() => {
     api('/auth/refresh', { method: 'POST' })
-      .then(async r => {
-        if (r.ok) {
-          const data = await r.json()
-          setAccessToken(data.accessToken)
-          await fetchMe()
-        }
+      .then(async response => {
+        if (!response.ok) return
+        const data = await response.json()
+        setAccessToken(data.accessToken)
+        await fetchMe()
       })
+      .catch(() => undefined)
       .finally(() => setLoading(false))
-  }, [])
+  }, [fetchMe])
 
-  async function login(email: string, password: string): Promise<string | null> {
-    const response = await api('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    })
+  const login = useCallback(async (email: string, password: string): Promise<AuthError | null> => {
+    try {
+      const response = await api('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email: email.trim(), password }),
+      })
 
-    if (!response.ok) {
-      const err = await response.json().catch(() => null)
-      return err?.message ?? 'erro ao entrar'
-    }
-
-    const data = await response.json()
-    setAccessToken(data.accessToken)
-    await fetchMe()
-    return null
-  }
-
-  async function register(username: string, displayName: string, email: string, password: string): Promise<string | null> {
-    const response = await api('/auth/register', {
-      method: 'POST',
-      body: JSON.stringify({ username, displayName, email, password }),
-    })
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => null)
-      if (err?.fields) {
-        return Object.values(err.fields).join(' · ')
+      if (!response.ok) {
+        return await toAuthError(response, 'e-mail ou senha não conferem')
       }
-      return err?.message ?? 'erro ao registrar'
+
+      const data = await response.json()
+      setAccessToken(data.accessToken)
+      await fetchMe()
+      return null
+    } catch {
+      return OFFLINE
     }
+  }, [fetchMe])
 
-    return login(email, password)
-  }
+  const register = useCallback(async (
+    username: string,
+    displayName: string,
+    email: string,
+    password: string,
+  ): Promise<AuthError | null> => {
+    try {
+      const response = await api('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({
+          username: username.trim(),
+          displayName: displayName.trim(),
+          email: email.trim(),
+          password,
+        }),
+      })
 
-  function logout() {
+      if (!response.ok) {
+        return await toAuthError(response, 'não foi possível criar a conta')
+      }
+
+      return login(email, password)
+    } catch {
+      return OFFLINE
+    }
+  }, [login])
+
+  const logout = useCallback(() => {
     setAccessToken(null)
     setUser(null)
-  }
+  }, [])
 
-  return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
-      {children}
-    </AuthContext.Provider>
+  const value = useMemo(
+    () => ({ user, loading, login, register, logout }),
+    [user, loading, login, register, logout],
   )
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {
-  const ctx = useContext(AuthContext)
-  if (!ctx) throw new Error('useAuth precisa estar dentro de AuthProvider')
-  return ctx
+  const context = useContext(AuthContext)
+  if (!context) throw new Error('useAuth precisa estar dentro de AuthProvider')
+  return context
 }
