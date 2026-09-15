@@ -1,5 +1,6 @@
 package com.literaryworld.auth;
 
+import com.literaryworld.shared.config.WebSecurityProperties;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -22,13 +23,16 @@ public class AuthController {
     private final AuthService authService;
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
+    private final WebSecurityProperties webSecurity;
 
     public AuthController(AuthService authService,
                           JwtService jwtService,
-                          RefreshTokenService refreshTokenService) {
+                          RefreshTokenService refreshTokenService,
+                          WebSecurityProperties webSecurity) {
         this.authService = authService;
         this.jwtService = jwtService;
         this.refreshTokenService = refreshTokenService;
+        this.webSecurity = webSecurity;
     }
 
     @PostMapping("/register")
@@ -66,11 +70,16 @@ public class AuthController {
                 .body(Map.of("accessToken", accessToken));
     }
 
+    /**
+     * Em desenvolvimento o cookie sai Strict, a escolha mais apertada. Publicado,
+     * front e back moram em domínios diferentes e o navegador deixa de enviar um
+     * cookie Strict — daí SameSite=None com Secure=true, que exige HTTPS.
+     */
     private ResponseCookie buildRefreshCookie(String token) {
         return ResponseCookie.from("refresh_token", token)
                 .httpOnly(true)
-                .secure(false) // TODO: true em produção (exige HTTPS)
-                .sameSite("Strict")
+                .secure(webSecurity.cookieSecure())
+                .sameSite(webSecurity.cookieSameSite())
                 .path("/auth/refresh")
                 .maxAge(Duration.ofDays(30))
                 .build();
