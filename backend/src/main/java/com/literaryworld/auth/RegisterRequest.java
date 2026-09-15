@@ -1,6 +1,6 @@
 package com.literaryworld.auth;
 
-import jakarta.validation.constraints.Email;
+import com.literaryworld.auth.email.RealEmail;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -17,7 +17,7 @@ public record RegisterRequest(
         String displayName,
 
         @NotBlank(message = "email é obrigatório")
-        @Email(message = "email inválido")
+        @RealEmail
         @Size(max = 255)
         String email,
 
